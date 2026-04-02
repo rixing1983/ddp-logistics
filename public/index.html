@@ -1,0 +1,76 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DDP物流平台 | 登录</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>body{background:linear-gradient(135deg,#0f172a 0%,#1e3a5f 50%,#0f172a 100%);min-height:100vh;}</style>
+</head><body class="flex items-center justify-center min-h-screen">
+<div class="w-full max-w-md px-4">
+  <div class="text-center mb-8">
+    <div class="text-5xl mb-3">🚢</div>
+    <h1 class="text-white text-2xl font-black">DDP物流追踪平台</h1>
+    <p class="text-blue-300 text-sm mt-1">China → US → Mexico 全程追踪</p>
+  </div>
+  <div class="bg-white rounded-2xl shadow-2xl p-8">
+    <h2 class="text-slate-800 text-lg font-bold mb-6 text-center">账号登录</h2>
+    <div id="err" class="hidden bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-4"></div>
+    <div class="space-y-4">
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">邮箱</label>
+        <input id="email" type="email" placeholder="your@email.com"
+          class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          onkeydown="if(event.key==='Enter')login()">
+      </div>
+      <div>
+        <label class="block text-xs font-semibold text-slate-500 uppercase mb-1">密码</label>
+        <input id="pw" type="password" placeholder="••••••••"
+          class="w-full border border-slate-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+          onkeydown="if(event.key==='Enter')login()">
+      </div>
+      <button onclick="login()" id="btn"
+        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-black py-3 rounded-xl text-sm transition shadow">
+        登录 →
+      </button>
+    </div>
+    <div class="mt-6 pt-5 border-t border-slate-100">
+      <p class="text-xs text-slate-400 font-semibold text-center mb-3">演示账号</p>
+      <div class="grid grid-cols-1 gap-2 text-xs">
+        <button onclick="fillDemo('admin@ddplogistics.com','Admin2026!')" class="flex items-center gap-2 bg-slate-50 hover:bg-blue-50 rounded-lg px-3 py-2 text-left transition">
+          <span class="text-base">👤</span><span><span class="font-bold text-slate-700">管理员</span> <span class="text-slate-400">admin@ddplogistics.com</span></span>
+        </button>
+        <button onclick="fillDemo('yingsheng@ddplogistics.com','Yingsheng2026!')" class="flex items-center gap-2 bg-slate-50 hover:bg-indigo-50 rounded-lg px-3 py-2 text-left transition">
+          <span class="text-base">🟣</span><span><span class="font-bold text-slate-700">Yingsheng 客户</span> <span class="text-slate-400">yingsheng@ddplogistics.com</span></span>
+        </button>
+        <button onclick="fillDemo('mytop@ddplogistics.com','MYTOP2026!')" class="flex items-center gap-2 bg-slate-50 hover:bg-orange-50 rounded-lg px-3 py-2 text-left transition">
+          <span class="text-base">🟠</span><span><span class="font-bold text-slate-700">MYTOP 客户</span> <span class="text-slate-400">mytop@ddplogistics.com</span></span>
+        </button>
+        <button onclick="fillDemo('rfexpress@ddplogistics.com','RFExpress2026!')" class="flex items-center gap-2 bg-slate-50 hover:bg-green-50 rounded-lg px-3 py-2 text-left transition">
+          <span class="text-base">🚛</span><span><span class="font-bold text-slate-700">RF Express 承运商</span> <span class="text-slate-400">rfexpress@ddplogistics.com</span></span>
+        </button>
+        <button onclick="fillDemo('wingo@ddplogistics.com','Wingo2026!')" class="flex items-center gap-2 bg-slate-50 hover:bg-teal-50 rounded-lg px-3 py-2 text-left transition">
+          <span class="text-base">🏭</span><span><span class="font-bold text-slate-700">Wingo Tech 发货商</span> <span class="text-slate-400">wingo@ddplogistics.com</span></span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <p class="text-center text-blue-300/50 text-xs mt-6">© 2026 DDP Logistics · 中墨报关全程追踪系统</p>
+</div>
+<script>
+function fillDemo(e,p){document.getElementById('email').value=e;document.getElementById('pw').value=p;}
+async function login(){
+  const btn=document.getElementById('btn'), err=document.getElementById('err');
+  btn.textContent='登录中…'; btn.disabled=true;
+  try{
+    const r=await fetch('/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:document.getElementById('email').value,password:document.getElementById('pw').value})});
+    const d=await r.json();
+    if(!r.ok){err.textContent=d.error||'登录失败';err.classList.remove('hidden');btn.textContent='登录 →';btn.disabled=false;return;}
+    localStorage.setItem('ddp_token',d.token);
+    localStorage.setItem('ddp_user',JSON.stringify(d.user));
+    if(d.user.role==='admin') window.location.href='/admin';
+    else window.location.href='/portal';
+  }catch(e){err.textContent='网络错误，请稍后重试';err.classList.remove('hidden');btn.textContent='登录 →';btn.disabled=false;}
+}
+// Auto-redirect if already logged in
+const tok=localStorage.getItem('ddp_token');
+if(tok){fetch('/api/me',{headers:{'Authorization':'Bearer '+tok}}).then(r=>{if(r.ok)r.json().then(u=>{window.location.href=u.role==='admin'?'/admin':'/portal';});});}
+</script>
+</body></html>

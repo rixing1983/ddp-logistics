@@ -1,0 +1,858 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DDP物流平台 | 管理后台</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+body{background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif;}
+.sidebar{width:220px;min-height:100vh;background:#1e293b;position:fixed;left:0;top:0;z-index:50;}
+.main{margin-left:220px;min-height:100vh;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;cursor:pointer;border-radius:8px;margin:2px 8px;font-size:14px;color:#94a3b8;transition:all .15s;}
+.nav-item:hover,.nav-item.active{background:#334155;color:#f1f5f9;}
+.card{background:#1e293b;border-radius:12px;padding:20px;border:1px solid #334155;}
+.stat-card{background:#1e293b;border-radius:12px;padding:16px 20px;border:1px solid #334155;}
+.btn{padding:7px 16px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;}
+.btn-primary{background:#3b82f6;color:#fff;border:none;}
+.btn-primary:hover{background:#2563eb;}
+.btn-danger{background:#ef4444;color:#fff;border:none;}
+.btn-danger:hover{background:#dc2626;}
+.btn-ghost{background:transparent;color:#94a3b8;border:1px solid #334155;}
+.btn-ghost:hover{background:#334155;color:#e2e8f0;}
+.btn-success{background:#10b981;color:#fff;border:none;}
+.btn-success:hover{background:#059669;}
+input,select,textarea{background:#0f172a;border:1px solid #334155;color:#e2e8f0;border-radius:8px;padding:8px 12px;font-size:13px;width:100%;outline:none;}
+input:focus,select:focus,textarea:focus{border-color:#3b82f6;}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;padding:10px 12px;color:#64748b;font-size:11px;text-transform:uppercase;border-bottom:1px solid #334155;}
+td{padding:10px 12px;border-bottom:1px solid #1e293b;vertical-align:middle;}
+tr:hover td{background:#1e293b;}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:11px;font-weight:600;}
+.badge-green{background:#064e3b;color:#6ee7b7;}
+.badge-blue{background:#1e3a5f;color:#93c5fd;}
+.badge-orange{background:#431407;color:#fdba74;}
+.badge-red{background:#450a0a;color:#fca5a5;}
+.badge-gray{background:#1e293b;color:#94a3b8;}
+.badge-indigo{background:#1e1b4b;color:#a5b4fc;}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:100;display:flex;align-items:center;justify-content:center;}
+.modal{background:#1e293b;border-radius:16px;padding:28px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;border:1px solid #334155;}
+.modal-lg{max-width:900px;}
+.chat-bubble{max-width:75%;padding:8px 14px;border-radius:12px;font-size:13px;line-height:1.5;margin:3px 0;}
+.chat-mine{background:#1d4ed8;color:#fff;margin-left:auto;border-bottom-right-radius:4px;}
+.chat-other{background:#334155;color:#e2e8f0;margin-right:auto;border-bottom-left-radius:4px;}
+.tab-btn{padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;color:#64748b;background:transparent;border:none;}
+.tab-btn.active{background:#334155;color:#f1f5f9;}
+.unread-badge{background:#ef4444;color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;margin-left:4px;}
+.milestone-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.milestone-done{background:#10b981;}
+.milestone-pending{background:#334155;border:2px solid #475569;}
+.milestone-line{width:2px;height:16px;margin:0 auto;}
+.milestone-line-done{background:#10b981;}
+.milestone-line-pending{background:#334155;}
+</style>
+</head>
+<body>
+<!-- Sidebar -->
+<div class="sidebar flex flex-col py-6">
+  <div class="px-5 mb-8">
+    <div class="text-xl font-black text-white">🚢 DDP管理后台</div>
+    <div class="text-xs text-slate-500 mt-1">China → US → Mexico</div>
+  </div>
+  <nav class="flex-1 space-y-1">
+    <div class="nav-item active" id="nav-dashboard" onclick="showSection('dashboard')">📊 <span>数据总览</span></div>
+    <div class="nav-item" id="nav-containers" onclick="showSection('containers')">📦 <span>集装箱管理</span></div>
+    <div class="nav-item" id="nav-invoices" onclick="showSection('invoices')">💰 <span>发票账单</span></div>
+    <div class="nav-item" id="nav-users" onclick="showSection('users')">👥 <span>用户管理</span></div>
+    <div class="nav-item" id="nav-messages" onclick="showSection('messages')">
+      💬 <span>消息中心</span>
+      <span id="msg-badge" class="hidden unread-badge">0</span>
+    </div>
+  </nav>
+  <div class="px-5 mt-auto pt-4 border-t border-slate-700">
+    <div id="admin-info" class="text-xs text-slate-500 mb-3"></div>
+    <button onclick="logout()" class="btn btn-ghost w-full text-xs">退出登录</button>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main p-6">
+
+<!-- Dashboard -->
+<div id="section-dashboard">
+  <h2 class="text-xl font-black text-white mb-6">数据总览</h2>
+  <div id="stat-cards" class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6"></div>
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card">
+      <h3 class="font-bold text-sm text-slate-300 mb-4">📋 近期集装箱状态</h3>
+      <div id="recent-containers" class="space-y-2"></div>
+    </div>
+    <div class="card">
+      <h3 class="font-bold text-sm text-slate-300 mb-4">💰 财务摘要</h3>
+      <div id="finance-summary"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Containers -->
+<div id="section-containers" class="hidden">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-xl font-black text-white">集装箱管理</h2>
+    <button onclick="openContainerModal()" class="btn btn-primary">+ 新建集装箱</button>
+  </div>
+  <div class="card mb-4">
+    <div class="flex gap-3 flex-wrap">
+      <input id="c-search" placeholder="搜索集装箱号、客户..." class="flex-1 min-w-48" oninput="renderContainerTable()">
+      <select id="c-status" onchange="renderContainerTable()" style="width:auto;">
+        <option value="">全部状态</option>
+        <option value="PENDING">待处理</option>
+        <option value="ISF_FILED">ISF已报</option>
+        <option value="IN_BOND">In-Bond</option>
+        <option value="CBP_HOLD">海关扣押</option>
+        <option value="CLEARED">已放行</option>
+        <option value="IN_TRANSIT_MX">墨西哥运输中</option>
+        <option value="DELIVERED">已送达</option>
+      </select>
+      <select id="c-customer" onchange="renderContainerTable()" style="width:auto;">
+        <option value="">全部客户</option>
+        <option value="Yingsheng">Yingsheng</option>
+        <option value="MYTOP">MYTOP</option>
+      </select>
+    </div>
+  </div>
+  <div class="card overflow-x-auto">
+    <table>
+      <thead><tr>
+        <th>集装箱号</th><th>客户</th><th>品名</th><th>状态</th>
+        <th>ISF</th><th>到港</th><th>墨西哥放行</th><th>目的地</th><th>操作</th>
+      </tr></thead>
+      <tbody id="container-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Invoices -->
+<div id="section-invoices" class="hidden">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-xl font-black text-white">发票账单</h2>
+    <button onclick="openInvoiceModal()" class="btn btn-primary">+ 新建发票</button>
+  </div>
+  <div class="grid grid-cols-3 gap-4 mb-4" id="invoice-stats"></div>
+  <div class="card overflow-x-auto">
+    <table>
+      <thead><tr>
+        <th>发票号</th><th>客户</th><th>集装箱</th><th>金额(USD)</th><th>状态</th><th>到期日</th><th>备注</th><th>操作</th>
+      </tr></thead>
+      <tbody id="invoice-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Users -->
+<div id="section-users" class="hidden">
+  <div class="flex items-center justify-between mb-6">
+    <h2 class="text-xl font-black text-white">用户管理</h2>
+    <button onclick="openUserModal()" class="btn btn-primary">+ 新建用户</button>
+  </div>
+  <div class="card overflow-x-auto">
+    <table>
+      <thead><tr>
+        <th>姓名</th><th>邮箱</th><th>角色</th><th>公司</th><th>创建时间</th><th>操作</th>
+      </tr></thead>
+      <tbody id="user-tbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Messages -->
+<div id="section-messages" class="hidden">
+  <h2 class="text-xl font-black text-white mb-6">消息中心</h2>
+  <div class="flex gap-4" style="height:600px;">
+    <!-- Channel list -->
+    <div class="card w-56 flex-shrink-0 overflow-y-auto p-2">
+      <div class="text-xs text-slate-500 font-bold uppercase px-2 mb-2">频道</div>
+      <div id="channel-list" class="space-y-1"></div>
+    </div>
+    <!-- Chat area -->
+    <div class="card flex-1 flex flex-col p-0 overflow-hidden">
+      <div id="chat-header" class="px-5 py-3 border-b border-slate-700 font-bold text-sm text-slate-300">选择一个频道开始聊天</div>
+      <div id="chat-msgs" class="flex-1 overflow-y-auto px-5 py-4 space-y-2"></div>
+      <div class="px-4 py-3 border-t border-slate-700 flex gap-2">
+        <input id="chat-input" placeholder="输入消息…" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage();}">
+        <button onclick="sendMessage()" class="btn btn-primary flex-shrink-0">发送</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- end main -->
+
+<!-- Container Modal -->
+<div id="container-modal" class="modal-bg hidden">
+<div class="modal modal-lg">
+  <div class="flex items-center justify-between mb-5">
+    <h3 id="c-modal-title" class="font-black text-lg text-white">新建集装箱</h3>
+    <button onclick="closeModal('container-modal')" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+  </div>
+  <div class="grid grid-cols-2 gap-4">
+    <div><label class="text-xs text-slate-400 mb-1 block">集装箱号 *</label><input id="cm-container_number" placeholder="MSCU1234567"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">客户 *</label>
+      <select id="cm-customer"><option value="Yingsheng">Yingsheng</option><option value="MYTOP">MYTOP</option></select></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">品名</label><input id="cm-product_name" placeholder="电子产品"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">尺寸</label>
+      <select id="cm-size"><option>40HQ</option><option>40GP</option><option>20GP</option></select></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">重量(KG)</label><input id="cm-weight_kg" type="number" placeholder="25000"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">CBK号</label><input id="cm-cbk" placeholder="CBK-001"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">目的地</label><input id="cm-destination" placeholder="Mexico City"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">收货人</label><input id="cm-consignee" placeholder="收货公司名"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">驾驶员</label><input id="cm-driver" placeholder="驾驶员姓名"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">驾驶员电话</label><input id="cm-driver_phone" placeholder="+1 ..."></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">费用成本(USD)</label><input id="cm-cost_usd" type="number" placeholder="0"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">报价(USD)</label><input id="cm-quote_usd" type="number" placeholder="0"></div>
+  </div>
+  <div class="border-t border-slate-700 mt-5 pt-5">
+    <p class="text-xs font-bold text-slate-400 mb-3 uppercase">里程碑时间节点</p>
+    <div class="grid grid-cols-3 gap-4">
+      <div><label class="text-xs text-slate-400 mb-1 block">ISF报关</label><input id="cm-isf_filed" placeholder="2026-01-15"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">到港</label><input id="cm-arrived_port" placeholder="2026-02-01"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">卸船</label><input id="cm-unloaded" placeholder="2026-02-03"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">CBP放行</label><input id="cm-cbp_released" placeholder="2026-02-05"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">CBP扣押</label><input id="cm-cbp_hold" placeholder="—"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">抵达Brownsville</label><input id="cm-arrived_brownsville" placeholder="2026-02-07"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">墨西哥海关</label><input id="cm-mx_customs" placeholder="2026-02-08"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">拆箱完成</label><input id="cm-unpacked" placeholder="2026-02-09"></div>
+      <div><label class="text-xs text-slate-400 mb-1 block">配送完成</label><input id="cm-delivered_date" placeholder="2026-02-10"></div>
+    </div>
+  </div>
+  <div class="mt-4">
+    <label class="text-xs text-slate-400 mb-1 block">备注</label>
+    <textarea id="cm-notes" rows="2" placeholder="备注信息"></textarea>
+  </div>
+  <div class="flex gap-3 justify-end mt-6">
+    <button onclick="closeModal('container-modal')" class="btn btn-ghost">取消</button>
+    <button id="c-modal-save" onclick="saveContainer()" class="btn btn-primary">保存</button>
+  </div>
+</div></div>
+
+<!-- Invoice Modal -->
+<div id="invoice-modal" class="modal-bg hidden">
+<div class="modal">
+  <div class="flex items-center justify-between mb-5">
+    <h3 id="inv-modal-title" class="font-black text-lg text-white">新建发票</h3>
+    <button onclick="closeModal('invoice-modal')" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+  </div>
+  <div class="grid grid-cols-2 gap-4">
+    <div><label class="text-xs text-slate-400 mb-1 block">发票号 *</label><input id="inv-invoice_number" placeholder="INV-2026-001"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">客户 *</label>
+      <select id="inv-customer_name"><option value="Yingsheng">Yingsheng</option><option value="MYTOP">MYTOP</option></select></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">集装箱号</label><input id="inv-container_number" placeholder="MSCU1234567"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">金额(USD) *</label><input id="inv-amount_usd" type="number" placeholder="5000"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">状态</label>
+      <select id="inv-status"><option value="pending">待付款</option><option value="paid">已付款</option><option value="overdue">逾期</option></select></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">到期日</label><input id="inv-due_date" placeholder="2026-03-01"></div>
+    <div class="col-span-2"><label class="text-xs text-slate-400 mb-1 block">备注</label><textarea id="inv-notes" rows="2" placeholder="发票备注"></textarea></div>
+  </div>
+  <div class="flex gap-3 justify-end mt-6">
+    <button onclick="closeModal('invoice-modal')" class="btn btn-ghost">取消</button>
+    <button id="inv-modal-save" onclick="saveInvoice()" class="btn btn-primary">保存</button>
+  </div>
+</div></div>
+
+<!-- User Modal -->
+<div id="user-modal" class="modal-bg hidden">
+<div class="modal">
+  <div class="flex items-center justify-between mb-5">
+    <h3 id="u-modal-title" class="font-black text-lg text-white">新建用户</h3>
+    <button onclick="closeModal('user-modal')" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+  </div>
+  <div class="grid grid-cols-2 gap-4">
+    <div><label class="text-xs text-slate-400 mb-1 block">姓名 *</label><input id="um-name" placeholder="张三"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">邮箱 *</label><input id="um-email" placeholder="user@example.com"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">密码 *</label><input id="um-password" type="password" placeholder="••••••••"></div>
+    <div><label class="text-xs text-slate-400 mb-1 block">角色 *</label>
+      <select id="um-role" onchange="toggleCompany()">
+        <option value="customer">客户 customer</option>
+        <option value="vendor">承运商/发货商 vendor</option>
+        <option value="admin">管理员 admin</option>
+      </select></div>
+    <div id="company-field" class="col-span-2"><label class="text-xs text-slate-400 mb-1 block">公司名称</label>
+      <input id="um-company" placeholder="公司名称（客户/供应商必填）"></div>
+  </div>
+  <div class="flex gap-3 justify-end mt-6">
+    <button onclick="closeModal('user-modal')" class="btn btn-ghost">取消</button>
+    <button id="u-modal-save" onclick="saveUser()" class="btn btn-primary">保存</button>
+  </div>
+</div></div>
+
+<!-- Container Detail Modal -->
+<div id="detail-modal" class="modal-bg hidden">
+<div class="modal modal-lg">
+  <div class="flex items-center justify-between mb-5">
+    <h3 id="detail-title" class="font-black text-lg text-white"></h3>
+    <button onclick="closeModal('detail-modal')" class="text-slate-400 hover:text-white text-2xl leading-none">&times;</button>
+  </div>
+  <div id="detail-body"></div>
+</div></div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const TOKEN = localStorage.getItem('ddp_token');
+let adminUser = null;
+let containers = [], invoices = [], users = [];
+let currentSection = 'dashboard';
+let currentChannel = null;
+let socket = null;
+let editingContainerId = null, editingInvoiceId = null, editingUserId = null;
+
+if (!TOKEN) { window.location.href = '/'; }
+
+// ---- API helper ----
+async function api(path, method='GET', body=null) {
+  const opts = { method, headers: { 'Authorization': 'Bearer ' + TOKEN } };
+  if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const r = await fetch(path, opts);
+  if (r.status === 401) { localStorage.removeItem('ddp_token'); window.location.href = '/'; }
+  if (!r.ok) { const d = await r.json().catch(()=>({})); throw new Error(d.error || r.statusText); }
+  return r.json();
+}
+
+function logout() { localStorage.removeItem('ddp_token'); localStorage.removeItem('ddp_user'); window.location.href = '/'; }
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+// ---- Status helpers ----
+const STATUS_LABEL = {
+  PENDING:'待处理', ISF_FILED:'ISF已报', IN_BOND:'In-Bond',
+  CBP_HOLD:'海关扣押', CLEARED:'已放行', IN_TRANSIT_MX:'墨西哥运输中', DELIVERED:'已送达'
+};
+const STATUS_CLASS = {
+  PENDING:'badge-gray', ISF_FILED:'badge-blue', IN_BOND:'badge-blue',
+  CBP_HOLD:'badge-red', CLEARED:'badge-green', IN_TRANSIT_MX:'badge-orange', DELIVERED:'badge-green'
+};
+function hasMark(v) { return v && v !== '/' && v !== '—' && v !== '-' && String(v).trim() !== ''; }
+function autoStatus(c) {
+  if (hasMark(c.delivered_date)) return 'DELIVERED';
+  if (hasMark(c.cbp_hold)) return 'CBP_HOLD';
+  if (hasMark(c.mx_customs) || hasMark(c.unpacked)) return 'IN_TRANSIT_MX';
+  if (hasMark(c.arrived_brownsville)) return 'IN_TRANSIT_MX';
+  if (hasMark(c.cbp_released) || hasMark(c.unloaded)) return 'CLEARED';
+  if (hasMark(c.arrived_port)) return 'IN_BOND';
+  if (hasMark(c.isf_filed)) return 'ISF_FILED';
+  return 'PENDING';
+}
+
+// ---- Navigation ----
+function showSection(name) {
+  ['dashboard','containers','invoices','users','messages'].forEach(s => {
+    document.getElementById('section-'+s).classList.toggle('hidden', s !== name);
+    document.getElementById('nav-'+s).classList.toggle('active', s === name);
+  });
+  currentSection = name;
+  if (name === 'dashboard') loadDashboard();
+  if (name === 'containers') renderContainerTable();
+  if (name === 'invoices') { renderInvoiceStats(); renderInvoiceTable(); }
+  if (name === 'users') renderUserTable();
+  if (name === 'messages') loadChannels();
+}
+
+// ---- Dashboard ----
+async function loadDashboard() {
+  try {
+    const stats = await api('/api/stats');
+    const cards = [
+      {label:'全部集装箱', value: stats.total, icon:'📦', color:'blue'},
+      {label:'In-Bond/在途', value: (stats.by_status?.IN_BOND||0)+(stats.by_status?.IN_TRANSIT_MX||0), icon:'🚢', color:'indigo'},
+      {label:'已送达', value: stats.by_status?.DELIVERED||0, icon:'✅', color:'green'},
+      {label:'海关扣押', value: stats.by_status?.CBP_HOLD||0, icon:'⚠️', color:'red'},
+      {label:'Yingsheng', value: stats.by_customer?.Yingsheng||0, icon:'🟣', color:'purple'},
+      {label:'MYTOP', value: stats.by_customer?.MYTOP||0, icon:'🟠', color:'orange'},
+      {label:'待付账单', value: stats.invoice_pending||0, icon:'📄', color:'yellow'},
+      {label:'总收入(USD)', value: '$'+(stats.total_revenue||0).toLocaleString(), icon:'💵', color:'teal'},
+    ];
+    document.getElementById('stat-cards').innerHTML = cards.map(c=>`
+      <div class="stat-card">
+        <div class="text-2xl mb-1">${c.icon}</div>
+        <div class="text-2xl font-black text-white">${c.value}</div>
+        <div class="text-xs text-slate-400 mt-1">${c.label}</div>
+      </div>`).join('');
+
+    // Recent containers
+    const recent = [...containers].sort((a,b)=>b.id-a.id).slice(0,6);
+    document.getElementById('recent-containers').innerHTML = recent.map(c=>{
+      const st = autoStatus(c);
+      return `<div class="flex items-center justify-between py-1">
+        <span class="text-sm font-mono text-slate-300">${esc(c.container_number)}</span>
+        <span class="badge ${STATUS_CLASS[st]}">${STATUS_LABEL[st]}</span>
+      </div>`;
+    }).join('');
+
+    // Finance summary
+    const paid = invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+Number(i.amount_usd||0),0);
+    const pending = invoices.filter(i=>i.status==='pending').reduce((s,i)=>s+Number(i.amount_usd||0),0);
+    const overdue = invoices.filter(i=>i.status==='overdue').reduce((s,i)=>s+Number(i.amount_usd||0),0);
+    document.getElementById('finance-summary').innerHTML = `
+      <div class="space-y-3">
+        <div class="flex justify-between items-center py-2 border-b border-slate-700">
+          <span class="text-sm text-slate-400">已收款</span>
+          <span class="font-black text-green-400">$${paid.toLocaleString()}</span>
+        </div>
+        <div class="flex justify-between items-center py-2 border-b border-slate-700">
+          <span class="text-sm text-slate-400">待收款</span>
+          <span class="font-black text-blue-400">$${pending.toLocaleString()}</span>
+        </div>
+        <div class="flex justify-between items-center py-2">
+          <span class="text-sm text-slate-400">逾期未付</span>
+          <span class="font-black text-red-400">$${overdue.toLocaleString()}</span>
+        </div>
+        <div class="mt-3 pt-3 border-t border-slate-700 flex justify-between">
+          <span class="text-sm font-bold text-slate-300">发票总数</span>
+          <span class="font-black text-white">${invoices.length}</span>
+        </div>
+      </div>`;
+  } catch(e) { console.error(e); }
+}
+
+// ---- Containers ----
+function renderContainerTable() {
+  const q = (document.getElementById('c-search').value||'').toLowerCase();
+  const st = document.getElementById('c-status').value;
+  const cu = document.getElementById('c-customer').value;
+  let list = containers.filter(c=>{
+    const status = autoStatus(c);
+    const match = !q || c.container_number?.toLowerCase().includes(q) || c.customer?.toLowerCase().includes(q) || c.product_name?.toLowerCase().includes(q);
+    return match && (!st || status===st) && (!cu || c.customer===cu);
+  });
+  const tb = document.getElementById('container-tbody');
+  if (!list.length) { tb.innerHTML = `<tr><td colspan="9" class="text-center text-slate-500 py-8">暂无数据</td></tr>`; return; }
+  tb.innerHTML = list.map(c=>{
+    const st = autoStatus(c);
+    const custBadge = c.customer==='Yingsheng' ? 'badge-indigo' : 'badge-orange';
+    return `<tr>
+      <td><span class="font-mono text-blue-300 cursor-pointer hover:underline" onclick="openDetail(${c.id})">${esc(c.container_number)}</span></td>
+      <td><span class="badge ${custBadge}">${esc(c.customer)}</span></td>
+      <td class="text-slate-400">${esc(c.product_name||'—')}</td>
+      <td><span class="badge ${STATUS_CLASS[st]}">${STATUS_LABEL[st]}</span></td>
+      <td class="text-slate-400">${hasMark(c.isf_filed)?'<span class="text-green-400">✓</span>':'<span class="text-slate-600">—</span>'}</td>
+      <td class="text-slate-400">${esc(c.arrived_port||'—')}</td>
+      <td class="text-slate-400">${esc(c.mx_customs||'—')}</td>
+      <td class="text-slate-400 max-w-32 truncate">${esc(c.destination||'—')}</td>
+      <td>
+        <button onclick="openContainerModal(${c.id})" class="btn btn-ghost text-xs mr-1">编辑</button>
+        <button onclick="deleteContainer(${c.id})" class="btn btn-danger text-xs">删除</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function openContainerModal(id=null) {
+  editingContainerId = id;
+  const fields = ['container_number','customer','product_name','size','weight_kg','cbk','destination','consignee',
+    'driver','driver_phone','cost_usd','quote_usd','isf_filed','arrived_port','unloaded','cbp_released',
+    'cbp_hold','arrived_brownsville','mx_customs','unpacked','delivered_date','notes'];
+  if (id) {
+    const c = containers.find(x=>x.id===id);
+    document.getElementById('c-modal-title').textContent = '编辑集装箱';
+    document.getElementById('c-modal-save').textContent = '保存修改';
+    fields.forEach(f=>{ const el=document.getElementById('cm-'+f); if(el) el.value=c[f]||''; });
+  } else {
+    document.getElementById('c-modal-title').textContent = '新建集装箱';
+    document.getElementById('c-modal-save').textContent = '创建集装箱';
+    fields.forEach(f=>{ const el=document.getElementById('cm-'+f); if(el) el.value=''; });
+  }
+  document.getElementById('container-modal').classList.remove('hidden');
+}
+
+async function saveContainer() {
+  const fields = ['container_number','customer','product_name','size','weight_kg','cbk','destination','consignee',
+    'driver','driver_phone','cost_usd','quote_usd','isf_filed','arrived_port','unloaded','cbp_released',
+    'cbp_hold','arrived_brownsville','mx_customs','unpacked','delivered_date','notes'];
+  const data = {};
+  fields.forEach(f=>{ const el=document.getElementById('cm-'+f); if(el) data[f]=el.value; });
+  if (!data.container_number) { alert('集装箱号不能为空'); return; }
+  try {
+    if (editingContainerId) {
+      const updated = await api('/api/containers/'+editingContainerId,'PUT',data);
+      const idx = containers.findIndex(c=>c.id===editingContainerId);
+      if (idx>=0) containers[idx] = updated;
+    } else {
+      const created = await api('/api/containers','POST',data);
+      containers.unshift(created);
+    }
+    closeModal('container-modal');
+    renderContainerTable();
+    if (currentSection==='dashboard') loadDashboard();
+  } catch(e) { alert('保存失败: '+e.message); }
+}
+
+async function deleteContainer(id) {
+  if (!confirm('确定删除该集装箱？此操作不可撤销。')) return;
+  try {
+    await api('/api/containers/'+id,'DELETE');
+    containers = containers.filter(c=>c.id!==id);
+    renderContainerTable();
+  } catch(e) { alert('删除失败: '+e.message); }
+}
+
+function openDetail(id) {
+  const c = containers.find(x=>x.id===id);
+  if (!c) return;
+  const st = autoStatus(c);
+  const milestones = [
+    {label:'ISF报关',val:c.isf_filed},{label:'到港',val:c.arrived_port},{label:'卸船',val:c.unloaded},
+    {label:'CBP放行',val:c.cbp_released},{label:'CBP扣押',val:c.cbp_hold},{label:'抵达Brownsville',val:c.arrived_brownsville},
+    {label:'墨西哥海关',val:c.mx_customs},{label:'拆箱完成',val:c.unpacked},{label:'配送完成',val:c.delivered_date}
+  ];
+  document.getElementById('detail-title').textContent = c.container_number + ' — ' + (c.product_name||'');
+  document.getElementById('detail-body').innerHTML = `
+    <div class="grid grid-cols-2 gap-6 mb-6">
+      <div class="space-y-2 text-sm">
+        <div class="flex justify-between"><span class="text-slate-400">客户</span><span class="font-bold text-white">${esc(c.customer)}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">尺寸</span><span>${esc(c.size||'—')}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">重量</span><span>${c.weight_kg?c.weight_kg+'kg':'—'}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">目的地</span><span>${esc(c.destination||'—')}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">收货人</span><span>${esc(c.consignee||'—')}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">状态</span><span class="badge ${STATUS_CLASS[st]}">${STATUS_LABEL[st]}</span></div>
+      </div>
+      <div class="space-y-2 text-sm">
+        <div class="flex justify-between"><span class="text-slate-400">驾驶员</span><span>${esc(c.driver||'—')}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">电话</span><span>${esc(c.driver_phone||'—')}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">费用成本</span><span class="text-red-300">${c.cost_usd?'$'+Number(c.cost_usd).toLocaleString():'—'}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">对外报价</span><span class="text-green-300">${c.quote_usd?'$'+Number(c.quote_usd).toLocaleString():'—'}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">利润</span><span class="font-black ${(c.quote_usd-c.cost_usd)>=0?'text-green-400':'text-red-400'}">${c.quote_usd&&c.cost_usd?'$'+(c.quote_usd-c.cost_usd).toLocaleString():'—'}</span></div>
+      </div>
+    </div>
+    <div class="border-t border-slate-700 pt-4">
+      <p class="text-xs text-slate-400 font-bold uppercase mb-3">运输里程碑</p>
+      <div class="space-y-2">
+        ${milestones.map((m,i)=>`
+          <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full flex-shrink-0 ${hasMark(m.val)?'bg-green-500':'bg-slate-700 border-2 border-slate-600'}"></div>
+            <span class="text-sm ${hasMark(m.val)?'text-white':'text-slate-600'} flex-1">${m.label}</span>
+            <span class="text-sm ${hasMark(m.val)?'text-green-400 font-bold':'text-slate-600'}">${hasMark(m.val)?m.val:'—'}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    ${c.notes?`<div class="mt-4 p-3 bg-slate-800 rounded-lg text-sm text-slate-300"><span class="font-bold">备注: </span>${esc(c.notes)}</div>`:''}
+    <div class="flex justify-end mt-5">
+      <button onclick="openContainerModal(${c.id});closeModal('detail-modal');" class="btn btn-primary">编辑此集装箱</button>
+    </div>`;
+  document.getElementById('detail-modal').classList.remove('hidden');
+}
+
+// ---- Invoices ----
+function renderInvoiceStats() {
+  const paid = invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+Number(i.amount_usd||0),0);
+  const pending = invoices.filter(i=>i.status==='pending').reduce((s,i)=>s+Number(i.amount_usd||0),0);
+  const overdue = invoices.filter(i=>i.status==='overdue').reduce((s,i)=>s+Number(i.amount_usd||0),0);
+  document.getElementById('invoice-stats').innerHTML = `
+    <div class="stat-card border-green-800"><div class="text-xs text-slate-400">已收款</div><div class="text-xl font-black text-green-400">$${paid.toLocaleString()}</div></div>
+    <div class="stat-card border-blue-800"><div class="text-xs text-slate-400">待收款</div><div class="text-xl font-black text-blue-400">$${pending.toLocaleString()}</div></div>
+    <div class="stat-card border-red-800"><div class="text-xs text-slate-400">逾期未付</div><div class="text-xl font-black text-red-400">$${overdue.toLocaleString()}</div></div>`;
+}
+
+function renderInvoiceTable() {
+  const tb = document.getElementById('invoice-tbody');
+  if (!invoices.length) { tb.innerHTML = `<tr><td colspan="8" class="text-center text-slate-500 py-8">暂无发票</td></tr>`; return; }
+  const statusMap = {paid:'badge-green',pending:'badge-blue',overdue:'badge-red'};
+  const statusLabel = {paid:'已付款',pending:'待付款',overdue:'逾期'};
+  tb.innerHTML = invoices.map(inv=>`
+    <tr>
+      <td class="font-mono text-blue-300">${esc(inv.invoice_number)}</td>
+      <td>${esc(inv.customer_name)}</td>
+      <td class="text-slate-400 font-mono text-xs">${esc(inv.container_number||'—')}</td>
+      <td class="font-black text-white">$${Number(inv.amount_usd||0).toLocaleString()}</td>
+      <td><span class="badge ${statusMap[inv.status]||'badge-gray'}">${statusLabel[inv.status]||inv.status}</span></td>
+      <td class="text-slate-400">${esc(inv.due_date||'—')}</td>
+      <td class="text-slate-400 max-w-36 truncate">${esc(inv.notes||'—')}</td>
+      <td>
+        <button onclick="openInvoiceModal(${inv.id})" class="btn btn-ghost text-xs mr-1">编辑</button>
+        <button onclick="deleteInvoice(${inv.id})" class="btn btn-danger text-xs">删除</button>
+      </td>
+    </tr>`).join('');
+}
+
+function openInvoiceModal(id=null) {
+  editingInvoiceId = id;
+  const fields = ['invoice_number','customer_name','container_number','amount_usd','status','due_date','notes'];
+  if (id) {
+    const inv = invoices.find(x=>x.id===id);
+    document.getElementById('inv-modal-title').textContent = '编辑发票';
+    document.getElementById('inv-modal-save').textContent = '保存修改';
+    fields.forEach(f=>{ const el=document.getElementById('inv-'+f); if(el) el.value=inv[f]||''; });
+  } else {
+    document.getElementById('inv-modal-title').textContent = '新建发票';
+    document.getElementById('inv-modal-save').textContent = '创建发票';
+    fields.forEach(f=>{ const el=document.getElementById('inv-'+f); if(el) el.value=''; });
+  }
+  document.getElementById('invoice-modal').classList.remove('hidden');
+}
+
+async function saveInvoice() {
+  const data = {
+    invoice_number: document.getElementById('inv-invoice_number').value,
+    customer_name: document.getElementById('inv-customer_name').value,
+    container_number: document.getElementById('inv-container_number').value,
+    amount_usd: document.getElementById('inv-amount_usd').value,
+    status: document.getElementById('inv-status').value,
+    due_date: document.getElementById('inv-due_date').value,
+    notes: document.getElementById('inv-notes').value
+  };
+  if (!data.invoice_number || !data.amount_usd) { alert('发票号和金额不能为空'); return; }
+  try {
+    if (editingInvoiceId) {
+      const updated = await api('/api/invoices/'+editingInvoiceId,'PUT',data);
+      const idx = invoices.findIndex(i=>i.id===editingInvoiceId);
+      if (idx>=0) invoices[idx] = updated;
+    } else {
+      const created = await api('/api/invoices','POST',data);
+      invoices.unshift(created);
+    }
+    closeModal('invoice-modal');
+    renderInvoiceStats(); renderInvoiceTable();
+    if (currentSection==='dashboard') loadDashboard();
+  } catch(e) { alert('保存失败: '+e.message); }
+}
+
+async function deleteInvoice(id) {
+  if (!confirm('确定删除该发票？')) return;
+  try {
+    await api('/api/invoices/'+id,'DELETE');
+    invoices = invoices.filter(i=>i.id!==id);
+    renderInvoiceStats(); renderInvoiceTable();
+  } catch(e) { alert('删除失败: '+e.message); }
+}
+
+// ---- Users ----
+function renderUserTable() {
+  const tb = document.getElementById('user-tbody');
+  if (!users.length) { tb.innerHTML = `<tr><td colspan="6" class="text-center text-slate-500 py-8">暂无用户</td></tr>`; return; }
+  const roleMap = {admin:'badge-red',customer:'badge-indigo',vendor:'badge-green'};
+  const roleLabel = {admin:'管理员',customer:'客户',vendor:'承运商'};
+  tb.innerHTML = users.map(u=>`
+    <tr>
+      <td class="font-bold text-white">${esc(u.name)}</td>
+      <td class="text-slate-400">${esc(u.email)}</td>
+      <td><span class="badge ${roleMap[u.role]||'badge-gray'}">${roleLabel[u.role]||u.role}</span></td>
+      <td class="text-slate-400">${esc(u.company||'—')}</td>
+      <td class="text-slate-400">${u.created_at?new Date(u.created_at).toLocaleDateString('zh-CN'):'—'}</td>
+      <td>
+        <button onclick="openUserModal(${u.id})" class="btn btn-ghost text-xs mr-1">编辑</button>
+        ${u.id!==adminUser.id?`<button onclick="deleteUser(${u.id})" class="btn btn-danger text-xs">删除</button>`:'<span class="text-xs text-slate-600">（当前用户）</span>'}
+      </td>
+    </tr>`).join('');
+}
+
+function toggleCompany() {
+  const role = document.getElementById('um-role').value;
+  document.getElementById('company-field').classList.toggle('hidden', role==='admin');
+}
+
+function openUserModal(id=null) {
+  editingUserId = id;
+  if (id) {
+    const u = users.find(x=>x.id===id);
+    document.getElementById('u-modal-title').textContent = '编辑用户';
+    document.getElementById('u-modal-save').textContent = '保存修改';
+    document.getElementById('um-name').value = u.name||'';
+    document.getElementById('um-email').value = u.email||'';
+    document.getElementById('um-password').value = '';
+    document.getElementById('um-role').value = u.role||'customer';
+    document.getElementById('um-company').value = u.company||'';
+  } else {
+    document.getElementById('u-modal-title').textContent = '新建用户';
+    document.getElementById('u-modal-save').textContent = '创建用户';
+    ['um-name','um-email','um-password','um-company'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('um-role').value = 'customer';
+  }
+  toggleCompany();
+  document.getElementById('user-modal').classList.remove('hidden');
+}
+
+async function saveUser() {
+  const data = {
+    name: document.getElementById('um-name').value,
+    email: document.getElementById('um-email').value,
+    role: document.getElementById('um-role').value,
+    company: document.getElementById('um-company').value
+  };
+  const pw = document.getElementById('um-password').value;
+  if (pw) data.password = pw;
+  if (!data.name || !data.email) { alert('姓名和邮箱不能为空'); return; }
+  if (!editingUserId && !pw) { alert('新建用户必须设置密码'); return; }
+  try {
+    if (editingUserId) {
+      const updated = await api('/api/users/'+editingUserId,'PUT',data);
+      const idx = users.findIndex(u=>u.id===editingUserId);
+      if (idx>=0) users[idx] = updated;
+    } else {
+      const created = await api('/api/users','POST',data);
+      users.push(created);
+    }
+    closeModal('user-modal');
+    renderUserTable();
+  } catch(e) { alert('保存失败: '+e.message); }
+}
+
+async function deleteUser(id) {
+  if (!confirm('确定删除该用户？')) return;
+  try {
+    await api('/api/users/'+id,'DELETE');
+    users = users.filter(u=>u.id!==id);
+    renderUserTable();
+  } catch(e) { alert('删除失败: '+e.message); }
+}
+
+// ---- Messages ----
+const CHANNELS = [
+  {id:'general',label:'📢 全体公告'},
+  {id:'admin-customer:Yingsheng',label:'🟣 Yingsheng客户'},
+  {id:'admin-customer:MYTOP',label:'🟠 MYTOP客户'},
+  {id:'admin-vendor:RF Express',label:'🚛 RF Express承运商'},
+  {id:'admin-vendor:Wingo Tech',label:'🏭 Wingo Tech发货商'}
+];
+
+let channelMessages = {};
+let unreadByChannel = {};
+
+function loadChannels() {
+  const list = document.getElementById('channel-list');
+  list.innerHTML = CHANNELS.map(ch=>`
+    <div id="chan-${ch.id.replace(/[^a-z0-9]/gi,'_')}" class="nav-item" onclick="switchChannel('${esc(ch.id)}','${esc(ch.label)}')">
+      <span class="flex-1">${ch.label}</span>
+      <span id="ubadge-${ch.id.replace(/[^a-z0-9]/gi,'_')}" class="hidden unread-badge">!</span>
+    </div>`).join('');
+  if (!currentChannel) switchChannel('general','📢 全体公告');
+  setupSocket();
+  pollUnread();
+}
+
+function setupSocket() {
+  if (socket) return;
+  socket = io({ auth: { token: TOKEN } });
+  socket.on('connect', ()=>{
+    CHANNELS.forEach(ch=>socket.emit('join', ch.id));
+  });
+  socket.on('new_message', msg=>{
+    if (!channelMessages[msg.channel]) channelMessages[msg.channel] = [];
+    channelMessages[msg.channel].push(msg);
+    if (msg.channel === currentChannel) appendMessage(msg);
+    else markChannelUnread(msg.channel);
+    updateGlobalUnread();
+  });
+}
+
+async function switchChannel(channelId, label) {
+  currentChannel = channelId;
+  document.getElementById('chat-header').textContent = label;
+  document.getElementById('chat-msgs').innerHTML = '<div class="text-center text-slate-500 text-sm py-4">加载中…</div>';
+
+  // Clear unread for this channel
+  unreadByChannel[channelId] = 0;
+  const safeId = channelId.replace(/[^a-z0-9]/gi,'_');
+  const badge = document.getElementById('ubadge-'+safeId);
+  if (badge) badge.classList.add('hidden');
+
+  // Mark active channel
+  CHANNELS.forEach(ch=>{
+    const el = document.getElementById('chan-'+ch.id.replace(/[^a-z0-9]/gi,'_'));
+    if (el) el.classList.toggle('active', ch.id===channelId);
+  });
+
+  try {
+    const msgs = await api('/api/messages?channel='+encodeURIComponent(channelId));
+    channelMessages[channelId] = msgs;
+    // Mark all read
+    await Promise.all(msgs.filter(m=>!m.is_read).map(m=>
+      api('/api/messages/'+m.id+'/read','POST').catch(()=>{})
+    ));
+    renderMessages(msgs);
+    updateGlobalUnread();
+  } catch(e) {
+    document.getElementById('chat-msgs').innerHTML = '<div class="text-center text-red-400 text-sm py-4">加载失败</div>';
+  }
+}
+
+function renderMessages(msgs) {
+  const box = document.getElementById('chat-msgs');
+  if (!msgs.length) { box.innerHTML = '<div class="text-center text-slate-500 text-sm py-8">暂无消息，开始对话吧</div>'; return; }
+  box.innerHTML = msgs.map(m=>msgHtml(m)).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+function appendMessage(m) {
+  const box = document.getElementById('chat-msgs');
+  const placeholder = box.querySelector('.text-center.text-slate-500');
+  if (placeholder) placeholder.remove();
+  box.insertAdjacentHTML('beforeend', msgHtml(m));
+  box.scrollTop = box.scrollHeight;
+}
+
+function msgHtml(m) {
+  const mine = m.sender_id === adminUser?.id;
+  const time = new Date(m.created_at).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+  return `<div class="flex flex-col ${mine?'items-end':'items-start'} mb-1">
+    <div class="text-xs text-slate-500 mb-1">${mine?'':esc(m.sender_name)+' · '}${time}</div>
+    <div class="chat-bubble ${mine?'chat-mine':'chat-other'}">${esc(m.content)}</div>
+  </div>`;
+}
+
+function markChannelUnread(channelId) {
+  unreadByChannel[channelId] = (unreadByChannel[channelId]||0)+1;
+  const safeId = channelId.replace(/[^a-z0-9]/gi,'_');
+  const badge = document.getElementById('ubadge-'+safeId);
+  if (badge) { badge.textContent = '!'; badge.classList.remove('hidden'); }
+}
+
+async function pollUnread() {
+  try {
+    const d = await api('/api/messages/unread-count');
+    updateGlobalUnreadCount(d.count||0);
+  } catch(e){}
+  setTimeout(pollUnread, 30000);
+}
+
+function updateGlobalUnread() {
+  const total = Object.values(unreadByChannel).reduce((a,b)=>a+b,0);
+  updateGlobalUnreadCount(total);
+}
+
+function updateGlobalUnreadCount(n) {
+  const badge = document.getElementById('msg-badge');
+  if (!badge) return;
+  if (n > 0) { badge.textContent = n>99?'99+':n; badge.classList.remove('hidden'); }
+  else badge.classList.add('hidden');
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const content = input.value.trim();
+  if (!content || !currentChannel) return;
+  input.value = '';
+  try {
+    const msg = await api('/api/messages','POST',{channel:currentChannel,content});
+    // Socket will broadcast, but also append locally for immediate feedback
+  } catch(e) { alert('发送失败: '+e.message); input.value = content; }
+}
+
+// ---- Modal helpers ----
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') ['container-modal','invoice-modal','user-modal','detail-modal'].forEach(closeModal); });
+['container-modal','invoice-modal','user-modal','detail-modal'].forEach(id=>{
+  const el = document.getElementById(id);
+  if(el) el.addEventListener('click',e=>{ if(e.target===el) closeModal(id); });
+});
+
+// ---- Init ----
+async function init() {
+  try {
+    adminUser = await api('/api/me');
+    if (adminUser.role !== 'admin') { window.location.href = '/portal'; return; }
+    document.getElementById('admin-info').textContent = adminUser.name || adminUser.email;
+    [containers, invoices, users] = await Promise.all([
+      api('/api/containers'),
+      api('/api/invoices'),
+      api('/api/users')
+    ]);
+    loadDashboard();
+  } catch(e) { window.location.href = '/'; }
+}
+init();
+</script>
+</body></html>

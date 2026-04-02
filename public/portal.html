@@ -1,0 +1,409 @@
+<!DOCTYPE html><html lang="zh-CN"><head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DDP客户/供应商门户</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  body{font-family:'Segoe UI',system-ui,sans-serif;}
+  .badge-PENDING{background:#f3f4f6;color:#374151;border:1px solid #d1d5db}
+  .badge-ISF_FILED{background:#dbeafe;color:#1d4ed8;border:1px solid #93c5fd}
+  .badge-IN_BOND{background:#ede9fe;color:#6d28d9;border:1px solid #c4b5fd}
+  .badge-CBP_HOLD{background:#fee2e2;color:#dc2626;border:1px solid #fca5a5}
+  .badge-CLEARED{background:#d1fae5;color:#065f46;border:1px solid #6ee7b7}
+  .badge-IN_TRANSIT_MX{background:#ffedd5;color:#c2410c;border:1px solid #fdba74}
+  .badge-DELIVERED{background:#dcfce7;color:#15803d;border:1px solid #86efac}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+  .blink{animation:blink 1.3s infinite}
+  .msg-mine{background:#dbeafe;margin-left:20%}
+  .msg-other{background:#f1f5f9;margin-right:20%}
+  .tbl-wrap{overflow-y:auto;max-height:calc(100vh - 200px)}
+  thead th{position:sticky;top:0;z-index:9}
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:3px}
+</style>
+</head>
+<body class="bg-slate-100 min-h-screen">
+
+<!-- HEADER -->
+<header id="hdr" class="text-white shadow-lg">
+  <div class="max-w-screen-xl mx-auto px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="text-2xl">🚢</span>
+      <div>
+        <div class="font-black text-base">DDP物流追踪</div>
+        <div id="hdr-sub" class="text-xs opacity-75"></div>
+      </div>
+    </div>
+    <div class="flex items-center gap-3">
+      <button onclick="showTab('msg')" id="msgBtn" class="relative bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-sm font-semibold transition">
+        💬 消息
+        <span id="unreadBadge" class="hidden absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center"></span>
+      </button>
+      <span id="userName" class="text-sm opacity-80"></span>
+      <button onclick="logout()" class="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-xs transition">退出</button>
+    </div>
+  </div>
+</header>
+
+<!-- TABS -->
+<div class="max-w-screen-xl mx-auto px-4 pt-4">
+  <div class="flex gap-1 bg-white rounded-xl shadow-sm border border-slate-100 p-1 w-fit mb-4">
+    <button onclick="showTab('containers')" id="tab-containers" class="tab-btn px-5 py-2 rounded-lg text-sm font-semibold transition">📦 我的集装箱</button>
+    <button onclick="showTab('invoices')" id="tab-invoices" class="tab-btn px-5 py-2 rounded-lg text-sm font-semibold transition">💰 财务账单</button>
+    <button onclick="showTab('msg')" id="tab-msg" class="tab-btn px-5 py-2 rounded-lg text-sm font-semibold transition">💬 消息</button>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="max-w-screen-xl mx-auto px-4 pb-3" id="statsRow"></div>
+
+<!-- CONTAINERS TAB -->
+<div id="pane-containers" class="max-w-screen-xl mx-auto px-4 pb-6">
+  <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-100 flex flex-wrap gap-3 items-center">
+      <input id="search" type="text" placeholder="🔍  搜索柜号、货描、地址…"
+        class="flex-1 min-w-40 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+        oninput="renderContainers()">
+      <select id="stFilter" class="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" onchange="renderContainers()">
+        <option value="">全部状态</option>
+        <option value="PENDING">待申报</option>
+        <option value="ISF_FILED">ISF已申报</option>
+        <option value="IN_BOND">In-Bond</option>
+        <option value="CBP_HOLD">CBP查扣</option>
+        <option value="CLEARED">已清关</option>
+        <option value="IN_TRANSIT_MX">墨西哥运输中</option>
+        <option value="DELIVERED">已送达</option>
+      </select>
+    </div>
+    <div class="tbl-wrap">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 border-b-2 border-slate-200 text-slate-500 text-xs font-semibold uppercase">
+          <tr>
+            <th class="px-3 py-3 text-left bg-slate-50">柜号</th>
+            <th class="px-3 py-3 text-left bg-slate-50">货描</th>
+            <th class="px-3 py-3 text-left bg-slate-50">ETD / ETA</th>
+            <th class="px-3 py-3 text-left bg-slate-50">重量</th>
+            <th class="px-3 py-3 text-center bg-slate-50">ISF</th>
+            <th class="px-3 py-3 text-left bg-slate-50">状态</th>
+            <th class="px-3 py-3 text-left bg-slate-50">配送目的地</th>
+            <th class="px-3 py-3 text-left bg-slate-50">预计送达</th>
+          </tr>
+        </thead>
+        <tbody id="cTbody"></tbody>
+      </table>
+    </div>
+    <div id="cFoot" class="px-4 py-2.5 border-t border-slate-100 text-xs text-slate-400"></div>
+  </div>
+</div>
+
+<!-- INVOICES TAB -->
+<div id="pane-invoices" class="max-w-screen-xl mx-auto px-4 pb-6 hidden">
+  <div id="invoiceSummary" class="grid grid-cols-3 gap-3 mb-4"></div>
+  <div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+    <div class="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+      <h3 class="font-bold text-slate-700">账单明细</h3>
+    </div>
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-semibold uppercase">
+        <tr>
+          <th class="px-4 py-3 text-left">账单描述</th>
+          <th class="px-4 py-3 text-left">关联柜号</th>
+          <th class="px-4 py-3 text-right">金额</th>
+          <th class="px-4 py-3 text-center">状态</th>
+          <th class="px-4 py-3 text-left">到期日</th>
+          <th class="px-4 py-3 text-left">开单日期</th>
+        </tr>
+      </thead>
+      <tbody id="invTbody"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MESSAGES TAB -->
+<div id="pane-msg" class="max-w-screen-xl mx-auto px-4 pb-6 hidden">
+  <div class="bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col" style="height:calc(100vh - 220px)">
+    <div class="px-5 py-3 border-b border-slate-100 flex items-center gap-2">
+      <div class="w-2 h-2 bg-green-400 rounded-full"></div>
+      <span class="font-bold text-slate-700 text-sm">与 DDP管理员 沟通</span>
+      <span class="text-xs text-slate-400 ml-2">可发送关于柜子状态、财务等任何问题</span>
+    </div>
+    <div id="chatBox" class="flex-1 overflow-y-auto px-5 py-4 space-y-3"></div>
+    <div class="px-5 py-3 border-t border-slate-100 flex gap-2">
+      <input id="msgInput" type="text" placeholder="输入消息… (Enter 发送)"
+        class="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300"
+        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg();}">
+      <button onclick="sendMsg()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl text-sm font-bold transition">发送</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div id="detailOverlay" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center hidden" onclick="if(event.target===this)closeDetail()">
+  <div id="detailBox" class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[88vh] overflow-y-auto m-3" onclick="event.stopPropagation()"></div>
+</div>
+
+<script>
+const API = '';
+let token = localStorage.getItem('ddp_token');
+let user = null;
+let containers = [], invoices = [];
+let socket = null;
+let chatChannel = '';
+let lastMsgTime = null;
+
+async function api(path, opts={}) {
+  const r = await fetch(API+path, { ...opts, headers: { 'Authorization':'Bearer '+token, 'Content-Type':'application/json', ...(opts.headers||{}) } });
+  if (r.status === 401) { logout(); return; }
+  return r.json();
+}
+
+function logout() { localStorage.clear(); window.location.href='/'; }
+
+const SC = {
+  PENDING:{label:'待ISF申报',emoji:'📋',color:'#374151',bg:'#f9fafb'},
+  ISF_FILED:{label:'ISF已申报',emoji:'✅',color:'#1d4ed8',bg:'#eff6ff'},
+  IN_BOND:{label:'7512 In-Bond',emoji:'🔒',color:'#6d28d9',bg:'#f5f3ff'},
+  CBP_HOLD:{label:'CBP查扣',emoji:'⚠️',color:'#dc2626',bg:'#fef2f2'},
+  CLEARED:{label:'已清关',emoji:'✔️',color:'#059669',bg:'#ecfdf5'},
+  IN_TRANSIT_MX:{label:'墨西哥运输中',emoji:'🚛',color:'#d97706',bg:'#fffbeb'},
+  DELIVERED:{label:'已送达',emoji:'📬',color:'#15803d',bg:'#f0fdf4'}
+};
+
+async function init() {
+  if (!token) { window.location.href='/'; return; }
+  user = await api('/api/me');
+  if (!user || user.error) { logout(); return; }
+  if (user.role === 'admin') { window.location.href='/admin'; return; }
+
+  // Style header
+  const isVendor = user.role === 'vendor';
+  document.getElementById('hdr').style.background = isVendor ? 'linear-gradient(to right,#064e3b,#065f46)' : (user.company==='MYTOP'?'linear-gradient(to right,#7c2d12,#c2410c)':'linear-gradient(to right,#312e81,#4338ca)');
+  document.getElementById('hdr-sub').textContent = isVendor ? `供应商门户 · ${user.company}` : `客户门户 · ${user.company}`;
+  document.getElementById('userName').textContent = user.name;
+  chatChannel = isVendor ? `admin-vendor:${user.company}` : `admin-customer:${user.company}`;
+
+  // Load data
+  [containers, invoices] = await Promise.all([api('/api/containers'), api('/api/invoices')]);
+
+  renderStats();
+  renderContainers();
+  renderInvoices();
+  setupSocket();
+  loadMessages();
+  showTab('containers');
+  pollUnread();
+}
+
+function renderStats() {
+  const n = s => containers.filter(c=>c.status===s).length;
+  const cbp = containers.filter(c=>c.cbp_hold).length;
+  const row = document.getElementById('statsRow');
+  row.innerHTML = `
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+      ${[
+        {l:'总柜数',v:containers.length,c:'bg-white text-slate-700'},
+        {l:'⚠️ CBP查扣',v:cbp,c:cbp>0?'bg-red-100 text-red-700':'bg-white text-slate-400'},
+        {l:'🚛 运输中',v:n('IN_TRANSIT_MX'),c:'bg-amber-50 text-amber-700'},
+        {l:'📬 已送达',v:n('DELIVERED'),c:'bg-green-50 text-green-700'},
+      ].map(x=>`<div class="rounded-xl shadow-sm border border-slate-100 px-4 py-3 ${x.c}">
+        <div class="text-2xl font-black">${x.v}</div><div class="text-xs font-semibold mt-0.5">${x.l}</div>
+      </div>`).join('')}
+    </div>`;
+}
+
+function renderContainers() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const sf = document.getElementById('stFilter').value;
+  const filtered = containers.filter(c => {
+    if (sf && c.status!==sf) return false;
+    if (q) { const h=[c.container,c.description,c.delivery_address,c.consignee_contact,c.shipper].join(' ').toLowerCase(); if(!h.includes(q)) return false; }
+    return true;
+  });
+  const tbody = document.getElementById('cTbody');
+  tbody.innerHTML = filtered.map(c => {
+    const sc = SC[c.status]||SC.PENDING;
+    const isCBP = c.cbp_hold || c.status==='CBP_HOLD';
+    const addr = (c.delivery_address||'—').substring(0,30)+(c.delivery_address&&c.delivery_address.length>30?'…':'');
+    return `<tr class="${isCBP?'bg-red-50':'c.status==="DELIVERED"?"bg-green-50/30":""'} border-b border-slate-50 cursor-pointer hover:bg-blue-50/40 transition-colors" onclick="openDetail(${c.id})">
+      <td class="px-3 py-2.5"><div class="font-mono font-bold text-slate-800 text-xs">${c.container}</div><div class="text-xs text-slate-400">${c.size||''} ${c.qty?'· '+c.qty+'件':''}</div></td>
+      <td class="px-3 py-2.5"><div class="text-xs text-slate-700 max-w-36 truncate">${c.description||'—'}</div></td>
+      <td class="px-3 py-2.5"><div class="text-xs text-slate-500">出 <span class="font-medium">${c.etd||'—'}</span></div><div class="text-xs text-slate-500">到 <span class="font-medium">${c.eta||'—'}</span></div></td>
+      <td class="px-3 py-2.5 text-xs text-slate-600">${c.weight||'—'}</td>
+      <td class="px-3 py-2.5 text-center">${c.isf_filed?'✅':'❌'}</td>
+      <td class="px-3 py-2.5"><span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${isCBP?'blink':''}" style="background:${sc.bg};color:${sc.color};border:1px solid ${sc.color}33">${sc.emoji} ${sc.label}</span></td>
+      <td class="px-3 py-2.5 text-xs text-slate-600 max-w-40 truncate">${addr}</td>
+      <td class="px-3 py-2.5 text-xs text-amber-700 font-medium">${c.m_est_del&&c.m_est_del!=='/'?'📅 '+c.m_est_del:c.m_delivered?'✅ 已送达':'—'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="8" class="text-center py-10 text-slate-400">暂无数据</td></tr>';
+  document.getElementById('cFoot').textContent = `显示 ${filtered.length} / ${containers.length} 条`;
+}
+
+function renderInvoices() {
+  const paid = invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+i.amount,0);
+  const pending = invoices.filter(i=>i.status==='pending').reduce((s,i)=>s+i.amount,0);
+  const overdue = invoices.filter(i=>i.status==='overdue').reduce((s,i)=>s+i.amount,0);
+  document.getElementById('invoiceSummary').innerHTML = `
+    <div class="bg-green-50 rounded-xl p-4 border border-green-100"><div class="text-xs font-black text-green-600 uppercase mb-1">已支付</div><div class="text-2xl font-black text-green-700">$${paid.toLocaleString()}</div></div>
+    <div class="bg-amber-50 rounded-xl p-4 border border-amber-100"><div class="text-xs font-black text-amber-600 uppercase mb-1">待付款</div><div class="text-2xl font-black text-amber-700">$${pending.toLocaleString()}</div></div>
+    <div class="bg-red-50 rounded-xl p-4 border border-red-100"><div class="text-xs font-black text-red-600 uppercase mb-1">逾期</div><div class="text-2xl font-black text-red-700">$${overdue.toLocaleString()}</div></div>`;
+  const stBadge = {paid:'bg-green-100 text-green-700',pending:'bg-amber-100 text-amber-700',overdue:'bg-red-100 text-red-700 font-bold'};
+  const stLabel = {paid:'已支付',pending:'待付款',overdue:'逾期未付'};
+  document.getElementById('invTbody').innerHTML = invoices.map(i=>`
+    <tr class="border-b border-slate-50 hover:bg-slate-50">
+      <td class="px-4 py-3 text-sm text-slate-700">${i.description||'—'}</td>
+      <td class="px-4 py-3 font-mono text-xs text-violet-700">${i.container_num||'—'}</td>
+      <td class="px-4 py-3 text-right font-bold text-slate-800">$${Number(i.amount).toLocaleString()}</td>
+      <td class="px-4 py-3 text-center"><span class="px-2 py-0.5 rounded-full text-xs ${stBadge[i.status]||'bg-slate-100 text-slate-600'}">${stLabel[i.status]||i.status}</span></td>
+      <td class="px-4 py-3 text-xs text-slate-500">${i.due_date||'—'}</td>
+      <td class="px-4 py-3 text-xs text-slate-400">${i.created_at?.substring(0,10)||''}</td>
+    </tr>`).join('') || '<tr><td colspan="6" class="text-center py-10 text-slate-400">暂无账单</td></tr>';
+}
+
+// ── MESSAGES ──────────────────────────────────────────────────
+let messages = [];
+async function loadMessages() {
+  messages = await api(`/api/messages?channel=${encodeURIComponent(chatChannel)}`);
+  renderChat();
+  // Mark all read
+  messages.forEach(m=>{ if(!m.is_read) api(`/api/messages/${m.id}/read`,{method:'POST'}); });
+  document.getElementById('unreadBadge').classList.add('hidden');
+}
+
+function renderChat() {
+  const box = document.getElementById('chatBox');
+  if (!messages || !messages.length) { box.innerHTML='<div class="text-center text-slate-300 py-10">暂无消息 — 发送消息开始沟通</div>'; return; }
+  box.innerHTML = messages.map(m => {
+    const mine = m.sender_id === user.id;
+    const time = m.created_at?.substring(5,16).replace('T',' ')||'';
+    return `<div class="rounded-xl px-4 py-3 max-w-xl ${mine?'msg-mine ml-auto':'msg-other'}">
+      <div class="flex items-center gap-2 mb-1">
+        <span class="text-xs font-bold ${mine?'text-blue-700':'text-slate-600'}">${m.sender_name||m.sender_role}</span>
+        <span class="text-xs text-slate-400">${time}</span>
+      </div>
+      <div class="text-sm text-slate-800 whitespace-pre-wrap">${escHtml(m.content)}</div>
+    </div>`;
+  }).join('');
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendMsg() {
+  const inp = document.getElementById('msgInput');
+  const content = inp.value.trim();
+  if (!content) return;
+  inp.value = '';
+  const m = await api('/api/messages', {method:'POST', body:JSON.stringify({channel:chatChannel, content})});
+  if (m && m.id) { messages.push({...m, is_read:1}); renderChat(); }
+}
+
+function setupSocket() {
+  socket = io({ auth: { token } });
+  socket.on('new_message', m => {
+    if (m.channel === chatChannel) {
+      messages.push(m);
+      if (document.getElementById('pane-msg').classList.contains('hidden')) {
+        const b = document.getElementById('unreadBadge');
+        b.textContent = '!'; b.classList.remove('hidden');
+      } else {
+        api(`/api/messages/${m.id}/read`,{method:'POST'});
+      }
+      renderChat();
+    }
+  });
+  socket.on('container_updated', c => {
+    const i = containers.findIndex(x=>x.id===c.id);
+    if(i!==-1){containers[i]=c;}else{containers.unshift(c);}
+    renderContainers(); renderStats();
+  });
+}
+
+async function pollUnread() {
+  const r = await api('/api/messages/unread-count');
+  if (r && r.count > 0) {
+    const b = document.getElementById('unreadBadge');
+    b.textContent = r.count > 9 ? '9+' : r.count;
+    b.classList.remove('hidden');
+  }
+  setTimeout(pollUnread, 30000);
+}
+
+// ── DETAIL ─────────────────────────────────────────────────────
+function openDetail(id) {
+  const c = containers.find(x=>x.id===id);
+  if (!c) return;
+  const sc = SC[c.status]||SC.PENDING;
+  const isCBP = c.cbp_hold || c.status==='CBP_HOLD';
+  const ms = [
+    ['ISF/5+2 申报', c.isf_filed?'✅ 已申报':'❌ 未申报'],
+    ['预计到港', c.m_est_arr],['已到港', c.m_arrived],['已下船', c.m_unloaded],
+    ['LFD最后免费日', c.m_lfd],['海关放行', c.m_cleared],['预提完成', c.m_prepick],
+    ['抵达Brownsville', c.m_brownsville],['拆柜清点', c.m_unpacked],
+    ['美墨边境', c.m_border],['美墨海关', c.m_mx_customs],
+    ['预计送达', c.m_est_del],['配送完成', c.m_delivered]
+  ].filter(([,v])=>v&&v!=='/'&&v!=='—'&&v!=='');
+  document.getElementById('detailBox').innerHTML=`
+    <div class="sticky top-0 bg-white border-b px-5 py-4 flex justify-between rounded-t-2xl z-10">
+      <div><div class="font-mono font-black text-slate-800 text-base">${c.container}</div>
+      <div class="text-xs text-slate-400 mt-0.5">${c.description||''} · ${c.shipper||''}</div></div>
+      <button onclick="closeDetail()" class="text-slate-300 hover:text-slate-600 text-2xl">&times;</button>
+    </div>
+    ${isCBP&&c.status!=='DELIVERED'?`<div class="mx-5 mt-4 bg-red-50 border border-red-200 rounded-xl p-3 flex items-center gap-3">
+      <span class="text-2xl blink">⚠️</span>
+      <div><div class="font-black text-red-700 text-sm">CBP 查扣 — 请联系DDP管理员处理</div></div>
+    </div>`:''}
+    <div class="px-5 pb-5 pt-4 grid grid-cols-2 gap-3">
+      <div class="col-span-2 bg-slate-50 rounded-xl p-4">
+        <div class="text-xs font-black text-slate-400 uppercase mb-2">船期信息</div>
+        <div class="grid grid-cols-3 gap-3 text-sm">
+          <div><div class="text-xs text-slate-400">ETD</div><div class="font-medium">${c.etd||'—'}</div></div>
+          <div><div class="text-xs text-slate-400">ETA</div><div class="font-medium">${c.eta||'—'}</div></div>
+          <div><div class="text-xs text-slate-400">状态</div>
+            <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold" style="background:${sc.bg};color:${sc.color}">${sc.emoji} ${sc.label}</span>
+          </div>
+          <div><div class="text-xs text-slate-400">重量</div><div class="font-medium">${c.weight||'—'}</div></div>
+          <div><div class="text-xs text-slate-400">件数</div><div class="font-medium">${c.qty||'—'}</div></div>
+          <div><div class="text-xs text-slate-400">拖车</div><div class="font-medium">${c.trailer||'—'}</div></div>
+        </div>
+      </div>
+      ${ms.length?`<div class="col-span-2 bg-blue-50 rounded-xl p-4">
+        <div class="text-xs font-black text-blue-500 uppercase mb-2">全程里程碑</div>
+        <div class="grid grid-cols-2 gap-x-6 gap-y-1.5 text-xs">
+          ${ms.map(([l,v])=>`<div class="flex gap-2"><span class="text-slate-400 w-28 flex-shrink-0">${l}</span><span class="font-semibold text-slate-700">${v}</span></div>`).join('')}
+        </div>
+      </div>`:''}
+      ${c.delivery_address?`<div class="col-span-2 bg-amber-50 rounded-xl p-4">
+        <div class="text-xs font-black text-amber-600 uppercase mb-2">🇲🇽 配送信息</div>
+        <div class="space-y-1.5 text-sm">
+          ${c.mx_driver?`<div><span class="text-slate-400 text-xs">司机/车辆</span><div class="font-medium">${c.mx_driver}</div></div>`:''}
+          ${c.consignee_contact?`<div><span class="text-slate-400 text-xs">联系人</span><div class="font-medium">${c.consignee_contact}</div></div>`:''}
+          <div><span class="text-slate-400 text-xs">配送地址</span><div class="font-medium">${c.delivery_address}</div></div>
+          ${c.gps?`<div><span class="text-slate-400 text-xs">GPS</span><a href="${c.gps}" target="_blank" class="text-blue-600 underline text-xs break-all">${c.gps}</a></div>`:''}
+        </div>
+      </div>`:''}
+      ${c.notes?`<div class="col-span-2 bg-yellow-50 border border-yellow-100 rounded-xl p-3"><span class="text-xs font-black text-yellow-600">📝 备注: </span><span class="text-sm text-yellow-800">${escHtml(c.notes)}</span></div>`:''}
+    </div>
+    <div class="px-5 pb-5 flex gap-2">
+      <button onclick="closeDetail();showTab('msg');" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl text-sm font-black">💬 询问此柜进展</button>
+      <button onclick="closeDetail()" class="px-4 border border-slate-200 rounded-xl text-sm text-slate-500">关闭</button>
+    </div>`;
+  document.getElementById('detailOverlay').classList.remove('hidden');
+}
+function closeDetail(){ document.getElementById('detailOverlay').classList.add('hidden'); }
+
+// ── TABS ─────────────────────────────────────────────────────────
+function showTab(name) {
+  ['containers','invoices','msg'].forEach(t=>{
+    document.getElementById('pane-'+t).classList.toggle('hidden', t!==name);
+    const btn=document.getElementById('tab-'+t);
+    btn.classList.toggle('bg-blue-600', t===name);
+    btn.classList.toggle('text-white', t===name);
+    btn.classList.toggle('text-slate-600', t!==name);
+  });
+  if (name==='msg') { loadMessages(); document.getElementById('unreadBadge').classList.add('hidden'); document.getElementById('statsRow').classList.add('hidden'); }
+  else document.getElementById('statsRow').classList.remove('hidden');
+}
+
+function escHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+init();
+</script>
+</body></html>
