@@ -435,7 +435,7 @@ app.get('/api/stats', auth, adminOnly, (req, res) => {
 // ────────────────────────────────────────────────────────────────────
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public/index.html')));
 app.get('/admin', (req, res) => res.sendFile(path.join(__dirname, 'public/admin.html')));
-app.get('/portal', (req, res) => res.sendFile(path.join(__dirname, 'public/portal.html')));
+app.get('/portal', (req, res) => res.redirect('/table')); // redirect to new table view
 app.get('/table', (req, res) => res.sendFile(path.join(__dirname, 'public/table.html')));
 
 

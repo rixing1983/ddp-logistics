@@ -2,356 +2,315 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width,initial-scale=1">
 <title>DDP物流 — 集装箱追踪表</title>
+<script src="https://cdn.tailwindcss.com"><\/script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif;
-         background: #f0f2f5; color: #1a1a2e; min-height: 100vh; font-size: 13px; }
-
-  /* TOP BAR */
-  .topbar { background: #1a3a5c; color: #fff; padding: 10px 16px;
-            display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-            position: sticky; top: 0; z-index: 100; box-shadow: 0 2px 8px rgba(0,0,0,.3); }
-  .topbar h1 { font-size: 15px; font-weight: 700; white-space: nowrap; }
-  .topbar .counts { font-size: 12px; color: #aac8e8; white-space: nowrap; }
-  .topbar .spacer { flex: 1; }
-
-  /* FILTER ROW */
-  .filters { background: #fff; border-bottom: 1px solid #dde3ec; padding: 8px 12px;
-             display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-             position: sticky; top: 44px; z-index: 99; }
-  .filters input, .filters select { padding: 5px 9px; border: 1px solid #ccd3de;
-    border-radius: 6px; font-size: 12px; outline: none; background: #f7f9fc; }
-  .filters input { width: 200px; }
-  .filters input:focus, .filters select:focus { border-color: #3a7bd5; background: #fff; }
-  .tab-group { display: flex; gap: 4px; }
-  .tab { padding: 4px 12px; border-radius: 16px; cursor: pointer; font-size: 12px; font-weight: 600;
-         border: 1.5px solid #d0d7e3; background: #f7f9fc; color: #555; transition: all .15s; }
-  .tab.active { background: #1a3a5c; color: #fff; border-color: #1a3a5c; }
-  .stat-chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: auto; }
-  .chip { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; cursor: pointer; }
-  .chip-all   { background:#e8edf5; color:#1a3a5c; }
-  .chip-pending    { background:#f5f5f5; color:#666; }
-  .chip-isf        { background:#e3eeff; color:#1a5ac8; }
-  .chip-inbond     { background:#e3e8ff; color:#4a3ac8; }
-  .chip-hold       { background:#fee; color:#c00; }
-  .chip-cleared    { background:#e6ffe6; color:#1a8a1a; }
-  .chip-transit    { background:#fff3e0; color:#b85c00; }
-  .chip-delivered  { background:#e6f4ea; color:#1a7a3a; }
-  .chip.active-chip { outline: 2px solid #1a3a5c; }
-
-  /* TABLE WRAPPER */
-  .table-wrap { overflow-x: auto; overflow-y: auto; max-height: calc(100vh - 108px); }
-  table { border-collapse: collapse; width: max-content; min-width: 100%; background: #fff; }
-
-  thead th { background: #1a3a5c; color: #c8ddf0; font-size: 11px; font-weight: 700;
-             padding: 8px 7px; white-space: nowrap; border-right: 1px solid #2a4a6c;
-             position: sticky; top: 0; z-index: 10; letter-spacing: .3px; }
-  thead th:first-child { left: 0; z-index: 11; }
-
-  tbody tr { border-bottom: 1px solid #eceff4; transition: background .1s; }
-  tbody tr:hover { background: #f0f5ff; }
-  tbody td { padding: 7px 7px; white-space: nowrap; border-right: 1px solid #eaeef4; vertical-align: middle; }
-
-  /* sticky first column */
-  td:first-child, th:first-child { position: sticky; left: 0; background: #f7f9fc; z-index: 5; }
-  tbody tr:hover td:first-child { background: #e8f0ff; }
-
-  /* BADGES */
-  .badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 10px; font-weight: 700; }
-  .b-ys   { background:#ede9ff; color:#5a3ac8; }
-  .b-mt   { background:#fff0e0; color:#c86000; }
-  .b-pend { background:#f5f5f5; color:#666; border:1px solid #ddd; }
-  .b-isf  { background:#e3eeff; color:#1a5ac8; }
-  .b-bond { background:#e3e8ff; color:#4a3ac8; }
-  .b-hold { background:#fee; color:#c00; border:1px solid #fcc; }
-  .b-clr  { background:#e6ffe6; color:#1a8a1a; }
-  .b-trn  { background:#fff3e0; color:#b85c00; }
-  .b-del  { background:#e6f4ea; color:#1a7a3a; }
-
-  .tick { color: #2a9a4a; font-weight: 900; }
-  .cross { color: #aaa; }
-  .hold-flag { color: #c00; font-weight: 700; }
-  .notes-cell { max-width: 220px; overflow: hidden; text-overflow: ellipsis; color: #777; font-size: 11px; }
-  .addr-cell  { max-width: 200px; overflow: hidden; text-overflow: ellipsis; color: #555; font-size: 11px; }
-  .driver-cell { max-width: 160px; overflow: hidden; text-overflow: ellipsis; font-size: 11px; }
-  .date-cell { color: #2a7acc; font-size: 12px; }
-  .price-cell { font-weight: 700; color: #1a7a3a; }
-
-  .no-data { text-align: center; padding: 60px; color: #999; font-size: 15px; }
-  .loading { text-align: center; padding: 60px; color: #999; }
-
-  /* LEGEND */
-  .legend { display: flex; gap: 8px; flex-wrap: wrap; padding: 6px 12px;
-            background: #f7f9fc; border-top: 1px solid #eaeef4; font-size: 11px; color: #777; }
-  .legend span { display: flex; align-items: center; gap: 3px; }
-
-  @media print {
-    .topbar, .filters, .legend { position: relative; }
-    .table-wrap { max-height: none; overflow: visible; }
-    body { font-size: 10px; }
-    thead th { background: #1a3a5c !important; -webkit-print-color-adjust: exact; color: #fff !important; }
-  }
+  body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#f0f4f8;margin:0}
+  .wrap{max-width:100%;overflow-x:auto}
+  table{border-collapse:collapse;width:max-content;min-width:100%}
+  th{background:#1e3a5f;color:#fff;font-size:11px;padding:8px 10px;white-space:nowrap;position:sticky;top:0;z-index:10}
+  td{font-size:12px;padding:6px 10px;border-bottom:1px solid #e5eaf0;vertical-align:top;white-space:nowrap}
+  tr:hover td{background:#eef4fb}
+  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+  .b-ys{background:#dbeafe;color:#1e40af}
+  .b-mt{background:#fce7f3;color:#9d174d}
+  .b-pend{background:#f3f4f6;color:#374151}
+  .b-isf{background:#eff6ff;color:#1d4ed8}
+  .b-bond{background:#f5f3ff;color:#6d28d9}
+  .b-hold{background:#fef2f2;color:#dc2626;animation:blink 1.2s ease-in-out infinite}
+  .b-clr{background:#ecfdf5;color:#059669}
+  .b-trn{background:#fffbeb;color:#d97706}
+  .b-del{background:#f0fdf4;color:#15803d}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
+  .date-cell{font-family:monospace;font-size:11px;color:#374151}
+  .tick{color:#16a34a;font-weight:700}
+  .cross{color:#d1d5db}
+  .hold-flag{background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700}
+  .price-cell{font-family:monospace;color:#1e40af;font-weight:700}
+  .addr-cell{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .driver-cell{max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .notes-cell{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b7280}
+  .no-data{text-align:center;padding:40px;color:#9ca3af}
+  .chip{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:all .15s}
+  .chip:hover{filter:brightness(.95)}
+  .active-chip{border-color:#1e3a5f!important;box-shadow:0 0 0 2px #1e3a5f22}
+  .chip-all{background:#e5eaf0;color:#374151}
+  .chip-pending{background:#f3f4f6;color:#374151}
+  .chip-isf{background:#eff6ff;color:#1d4ed8}
+  .chip-inbond{background:#f5f3ff;color:#6d28d9}
+  .chip-hold{background:#fef2f2;color:#dc2626}
+  .chip-cleared{background:#ecfdf5;color:#059669}
+  .chip-transit{background:#fffbeb;color:#d97706}
+  .chip-delivered{background:#f0fdf4;color:#15803d}
+  .tab{cursor:pointer;padding:6px 18px;border-radius:8px;font-size:13px;font-weight:700;transition:all .15s}
+  .tab.active{background:#1e3a5f;color:#fff}
+  .tab:not(.active){color:#374151}
+  .tab:not(.active):hover{background:#e5eaf0}
+  #user-banner{display:none;background:linear-gradient(to right,#1e3a5f,#2563eb);color:#fff;padding:10px 20px;font-size:13px}
 </style>
 </head>
 <body>
 
-<div class="topbar">
-  <div>🚢</div>
-  <h1>DDP物流追踪 — 集装箱总览</h1>
-  <span class="counts" id="count-label">加载中...</span>
-  <div class="spacer"></div>
-  <span style="font-size:11px;color:#7aa8cc">中国 → 美国 → 墨西哥</span>
-</div>
-
-<div class="filters">
-  <input type="text" id="search" placeholder="🔍  搜索柜号、货描、备注...">
-  <div class="tab-group" id="cust-tabs">
-    <div class="tab active" data-cust="">全部客户</div>
-    <div class="tab" data-cust="Yingsheng">Yingsheng</div>
-    <div class="tab" data-cust="MYTOP">MYTOP</div>
+<!-- 登录用户横幅 -->
+<div id="user-banner">
+  <div style="max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between">
+    <span>&#128274; <strong id="banner-name"></strong> &middot; <span id="banner-company" style="opacity:.85"></span></span>
+    <button onclick="doLogout()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">退出登录</button>
   </div>
-  <select id="status-filter">
-    <option value="">全部状态</option>
-    <option value="PENDING">待处理</option>
-    <option value="ISF_FILED">ISF已报</option>
-    <option value="IN_BOND">In-Bond</option>
-    <option value="CBP_HOLD">CBP扣押</option>
-    <option value="CLEARED">已放行</option>
-    <option value="IN_TRANSIT_MX">墨西哥运输中</option>
-    <option value="DELIVERED">已送达</option>
-  </select>
-  <select id="size-filter">
-    <option value="">全部类型</option>
-    <option value="40HC">40HC</option>
-    <option value="TRANSFER">转运</option>
-  </select>
-  <div class="stat-chips" id="stat-chips"></div>
 </div>
 
-<div class="table-wrap">
-  <table id="main-table">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>客户</th>
-        <th>柜号</th>
-        <th>货描</th>
-        <th>尺寸</th>
-        <th>数量</th>
-        <th>货重</th>
-        <th>ETD</th>
-        <th>ETA</th>
-        <th>ISF</th>
-        <th>In-Bond#</th>
-        <th>到港</th>
-        <th>卸船</th>
-        <th>CBP放行</th>
-        <th>CBP扣押</th>
-        <th>布朗斯维尔</th>
-        <th>墨西哥海关</th>
-        <th>拆箱完成</th>
-        <th>配送完成</th>
-        <th>状态</th>
-        <th>目的地</th>
-        <th>司机/联系人</th>
-        <th>收货联系人</th>
-        <th>报价(USD)</th>
-        <th>备注</th>
-      </tr>
-    </thead>
-    <tbody id="tbody">
-      <tr><td colspan="25" class="loading">正在加载集装箱数据...</td></tr>
-    </tbody>
-  </table>
+<!-- 主标题栏 -->
+<div style="background:#1e3a5f;color:#fff;padding:16px 20px">
+  <div style="max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <div>
+      <div style="font-size:20px;font-weight:900">&#128674; DDP物流追踪 &mdash; 集装箱总览</div>
+      <div style="font-size:12px;opacity:.75;margin-top:2px">中国 &rarr; 美国 &rarr; 墨西哥</div>
+    </div>
+    <div style="font-size:13px;font-weight:700;opacity:.9" id="count-label">加载中&hellip;</div>
+  </div>
 </div>
 
-<div class="legend">
-  <b>状态说明：</b>
-  <span><span class="badge b-pend">待处理</span> 尚未出港</span>
-  <span><span class="badge b-isf">ISF已报</span> 已提交ISF</span>
-  <span><span class="badge b-bond">In-Bond</span> 在途保税</span>
-  <span><span class="badge b-hold">CBP扣押</span> 海关检查</span>
-  <span><span class="badge b-clr">已放行</span> CBP通关</span>
-  <span><span class="badge b-trn">运输中</span> 墨西哥境内</span>
-  <span><span class="badge b-del">已送达</span> 完成配送</span>
+<!-- 过滤工具栏 -->
+<div style="background:#fff;border-bottom:1px solid #e5eaf0;padding:12px 20px">
+  <div style="max-width:1400px;margin:0 auto">
+    <div id="cust-tabs" style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+      <div class="tab active" data-cust="">全部客户</div>
+      <div class="tab" data-cust="Yingsheng">Yingsheng</div>
+      <div class="tab" data-cust="MYTOP">MYTOP</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <select id="status-filter" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff">
+        <option value="">全部状态</option>
+        <option value="PENDING">待处理</option>
+        <option value="ISF_FILED">ISF已报</option>
+        <option value="IN_BOND">In-Bond</option>
+        <option value="CBP_HOLD">CBP扣押</option>
+        <option value="CLEARED">已放行</option>
+        <option value="IN_TRANSIT_MX">墨西哥运输中</option>
+        <option value="DELIVERED">已送达</option>
+      </select>
+      <select id="size-filter" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;background:#fff">
+        <option value="">全部类型</option>
+        <option value="40HC">40HC</option>
+        <option value="TRANSFER">转运</option>
+      </select>
+      <input id="search" placeholder="搜索柜号 / 货描 / 地址…" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;min-width:200px;flex:1">
+    </div>
+    <div id="stat-chips" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"></div>
+  </div>
+</div>
+
+<!-- 表格 -->
+<div style="max-width:1400px;margin:16px auto;padding:0 12px">
+  <div class="wrap" style="background:#fff;border-radius:12px;box-shadow:0 1px 4px #0001;overflow:hidden">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>客户</th><th>柜号</th><th>货描</th><th>尺寸</th><th>数量</th><th>货重</th>
+          <th>ETD</th><th>ETA</th><th>ISF</th><th>In-Bond#</th>
+          <th>到港</th><th>卸船</th><th>CBP放行</th><th>CBP扣押</th>
+          <th>布朗斯维尔</th><th>墨西哥海关</th><th>拆箱完成</th><th>配送完成</th>
+          <th>状态</th><th>目的地</th><th>司机/联系人</th><th>收货联系人</th><th>报价(USD)</th><th>备注</th>
+        </tr>
+      </thead>
+      <tbody id="tbody">
+        <tr><td colspan="25" class="no-data">&#9203; 加载中&hellip;</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top:16px;font-size:11px;color:#9ca3af;display:flex;flex-wrap:wrap;gap:12px">
+    <span><span class="badge b-pend">待处理</span> 尚未出港</span>
+    <span><span class="badge b-isf">ISF已报</span> 已提交ISF</span>
+    <span><span class="badge b-bond">In-Bond</span> 在途保税</span>
+    <span><span class="badge b-hold">CBP扣押</span> 海关检查</span>
+    <span><span class="badge b-clr">已放行</span> CBP通关</span>
+    <span><span class="badge b-trn">运输中</span> 墨西哥境内</span>
+    <span><span class="badge b-del">已送达</span> 完成配送</span>
+  </div>
 </div>
 
 <script>
-// ── Config ─────────────────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────────────────
 const KEY = new URLSearchParams(location.search).get('key') || 'ddp2026';
 
-// ── Status helpers ──────────────────────────────────────────────────────
-const S_LABEL = {
-  PENDING:'待处理', ISF_FILED:'ISF已报', IN_BOND:'In-Bond',
-  CBP_HOLD:'CBP扣押', CLEARED:'已放行', IN_TRANSIT_MX:'运输中', DELIVERED:'已送达'
-};
-const S_CLASS = {
-  PENDING:'b-pend', ISF_FILED:'b-isf', IN_BOND:'b-bond',
-  CBP_HOLD:'b-hold', CLEARED:'b-clr', IN_TRANSIT_MX:'b-trn', DELIVERED:'b-del'
-};
-function hasMark(v){ return v && v!=='/' && v!=='—' && v!=='-' && String(v).trim()!==''; }
+// ── Status helpers ────────────────────────────────────────────────────────
+const S_LABEL = {PENDING:'待处理',ISF_FILED:'ISF已报',IN_BOND:'In-Bond',CBP_HOLD:'CBP扣押',CLEARED:'已放行',IN_TRANSIT_MX:'运输中',DELIVERED:'已送达'};
+const S_CLASS = {PENDING:'b-pend',ISF_FILED:'b-isf',IN_BOND:'b-bond',CBP_HOLD:'b-hold',CLEARED:'b-clr',IN_TRANSIT_MX:'b-trn',DELIVERED:'b-del'};
+
+function hasMark(v){ return v && v!='/' && v!='—' && v!='-' && String(v).trim()!=''; }
 function autoStatus(c){
-  if(hasMark(c.m_delivered))   return 'DELIVERED';
-  if(hasMark(c.cbp_hold))      return 'CBP_HOLD';
+  if(hasMark(c.m_delivered))  return 'DELIVERED';
+  if(hasMark(c.cbp_hold))     return 'CBP_HOLD';
   if(hasMark(c.m_mx_customs)||hasMark(c.m_unpacked)) return 'IN_TRANSIT_MX';
   if(hasMark(c.m_brownsville)) return 'IN_TRANSIT_MX';
-  if(hasMark(c.m_cleared)||hasMark(c.m_unloaded))    return 'CLEARED';
-  if(hasMark(c.m_arrived))     return 'IN_BOND';
-  if(hasMark(c.isf_filed))     return 'ISF_FILED';
+  if(hasMark(c.m_cleared)||hasMark(c.m_unloaded)) return 'CLEARED';
+  if(hasMark(c.m_arrived))    return 'IN_BOND';
+  if(hasMark(c.isf_filed))    return 'ISF_FILED';
   return 'PENDING';
 }
 function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function dateCell(v){ return v ? `<span class="date-cell">${esc(v)}</span>` : '<span style="color:#ccc">—</span>'; }
-function checkCell(v){ return hasMark(v) ? `<span class="tick">✓</span>` : '<span class="cross">—</span>'; }
+function dateCell(v){ return v ? '<span class="date-cell">'+esc(v)+'</span>' : '<span style="color:#ccc">—</span>'; }
+function checkCell(v){ return hasMark(v) ? '<span class="tick">✓</span>' : '<span class="cross">—</span>'; }
 
-// ── State ───────────────────────────────────────────────────────────────
-let allRows = [];
-let filterCust = '';
-let filterStatus = '';
-let filterSize = '';
-let searchQ = '';
+// ── State ─────────────────────────────────────────────────────────────────
+let allRows=[], filterCust='', filterStatus='', filterSize='', searchQ='', loggedInUser=null;
 
-// ── Fetch ───────────────────────────────────────────────────────────────
+// ── Auth helpers ──────────────────────────────────────────────────────────
+function doLogout(){
+  localStorage.removeItem('ddp_token');
+  localStorage.removeItem('ddp_user');
+  loggedInUser=null;
+  filterCust='';
+  document.getElementById('user-banner').style.display='none';
+  document.getElementById('cust-tabs').style.display='flex';
+  document.querySelectorAll('#cust-tabs .tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('#cust-tabs .tab[data-cust=""]').classList.add('active');
+  loadData();
+}
+
+// ── Fetch ─────────────────────────────────────────────────────────────────
 async function loadData(){
-  try {
-    // Try shared endpoint first, fall back to admin login
+  try{
     let rows;
-    try {
-      const r = await fetch('/api/view/containers?key=' + encodeURIComponent(KEY));
-      if(!r.ok) throw new Error('not ok');
-      rows = await r.json();
-    } catch(e1) {
-      // fallback: try admin login
-      const lr = await fetch('/api/auth/login', {
-        method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({email:'admin@ddplogistics.com', password:'Admin2026!'})
-      });
-      if(!lr.ok) throw new Error('Auth failed');
-      const ld = await lr.json();
-      const cr = await fetch('/api/containers', { headers:{'Authorization':'Bearer '+ld.token} });
-      rows = await cr.json();
+    const token = localStorage.getItem('ddp_token');
+    if(token){
+      try{
+        const meRes = await fetch('/api/me',{headers:{'Authorization':'Bearer '+token}});
+        if(meRes.ok){
+          const me = await meRes.json();
+          if(me && !me.error){
+            const cr = await fetch('/api/containers',{headers:{'Authorization':'Bearer '+token}});
+            if(cr.ok){ rows=await cr.json(); loggedInUser=me; showUserBanner(me); }
+          }
+        }
+      }catch(e2){}
     }
-    allRows = Array.isArray(rows) ? rows : [];
-    buildStatChips();
-    render();
-  } catch(e){
-    document.getElementById('tbody').innerHTML = `<tr><td colspan="25" class="no-data">❌ 加载失败：${esc(e.message)}</td></tr>`;
+    if(!rows){
+      const r=await fetch('/api/view/containers?key='+encodeURIComponent(KEY));
+      if(!r.ok) throw new Error('加载失败');
+      rows=await r.json();
+      loggedInUser=null;
+      document.getElementById('user-banner').style.display='none';
+      document.getElementById('cust-tabs').style.display='flex';
+    }
+    allRows=Array.isArray(rows)?rows:[];
+    buildStatChips(); render();
+  }catch(e){
+    document.getElementById('tbody').innerHTML='<tr><td colspan="25" class="no-data">❌ 加载失败：'+esc(e.message)+'</td></tr>';
   }
 }
 
-// ── Stat chips ──────────────────────────────────────────────────────────
+function showUserBanner(me){
+  document.getElementById('banner-name').textContent=me.name||me.email;
+  document.getElementById('banner-company').textContent=
+    me.role==='admin'?'管理员':
+    me.role==='customer'?('客户 · '+me.company):
+    ('供应商 · '+me.company);
+  document.getElementById('user-banner').style.display='block';
+  if(me.role==='customer'){
+    filterCust=me.company;
+    document.getElementById('cust-tabs').style.display='none';
+  } else if(me.role==='vendor'){
+    filterCust='';
+    document.getElementById('cust-tabs').style.display='none';
+  } else {
+    filterCust='';
+    document.getElementById('cust-tabs').style.display='flex';
+  }
+}
+
+// ── Stat chips ────────────────────────────────────────────────────────────
 function buildStatChips(){
-  const counts = {};
-  allRows.forEach(c=>{
-    const s = autoStatus(c);
-    counts[s] = (counts[s]||0)+1;
-  });
-  const order = ['PENDING','ISF_FILED','IN_BOND','CBP_HOLD','CLEARED','IN_TRANSIT_MX','DELIVERED'];
-  const labels = {PENDING:'待处理',ISF_FILED:'ISF',IN_BOND:'In-Bond',CBP_HOLD:'CBP扣',CLEARED:'放行',IN_TRANSIT_MX:'运输中',DELIVERED:'已送达'};
-  const cls = {PENDING:'chip-pending',ISF_FILED:'chip-isf',IN_BOND:'chip-inbond',CBP_HOLD:'chip-hold',CLEARED:'chip-cleared',IN_TRANSIT_MX:'chip-transit',DELIVERED:'chip-delivered'};
-  const el = document.getElementById('stat-chips');
-  el.innerHTML = `<span class="chip chip-all" data-s="" title="全部 ${allRows.length} 柜">全部 ${allRows.length}</span>` +
-    order.filter(s=>counts[s]).map(s=>
-      `<span class="chip ${cls[s]}" data-s="${s}" title="${S_LABEL[s]} ${counts[s]} 柜">${labels[s]} ${counts[s]}</span>`
-    ).join('');
+  const counts={};
+  allRows.forEach(c=>{ const s=autoStatus(c); counts[s]=(counts[s]||0)+1; });
+  const order=['PENDING','ISF_FILED','IN_BOND','CBP_HOLD','CLEARED','IN_TRANSIT_MX','DELIVERED'];
+  const labels={PENDING:'待处理',ISF_FILED:'ISF',IN_BOND:'In-Bond',CBP_HOLD:'CBP扣',CLEARED:'放行',IN_TRANSIT_MX:'运输中',DELIVERED:'已送达'};
+  const cls={PENDING:'chip-pending',ISF_FILED:'chip-isf',IN_BOND:'chip-inbond',CBP_HOLD:'chip-hold',CLEARED:'chip-cleared',IN_TRANSIT_MX:'chip-transit',DELIVERED:'chip-delivered'};
+  const el=document.getElementById('stat-chips');
+  el.innerHTML='<span class="chip chip-all" data-s="" title="全部 '+allRows.length+' 柜">全部 '+allRows.length+'</span>'+
+    order.filter(s=>counts[s]).map(s=>'<span class="chip '+cls[s]+'" data-s="'+s+'" title="'+S_LABEL[s]+' '+counts[s]+' 柜">'+labels[s]+' '+counts[s]+'</span>').join('');
   el.querySelectorAll('.chip').forEach(ch=>{
     ch.addEventListener('click',()=>{
-      filterStatus = ch.dataset.s;
-      document.getElementById('status-filter').value = filterStatus;
+      filterStatus=ch.dataset.s;
+      document.getElementById('status-filter').value=filterStatus;
       el.querySelectorAll('.chip').forEach(x=>x.classList.remove('active-chip'));
       ch.classList.add('active-chip');
       render();
     });
   });
-  // mark "全部" as active initially
   el.querySelector('.chip[data-s=""]').classList.add('active-chip');
 }
 
-// ── Render ───────────────────────────────────────────────────────────────
+// ── Render ────────────────────────────────────────────────────────────────
 function render(){
-  const q = searchQ.toLowerCase().trim();
-  let list = allRows.filter(c=>{
-    if(filterCust && c.customer !== filterCust) return false;
-    if(filterSize && c.size !== filterSize) return false;
-    const s = autoStatus(c);
-    if(filterStatus && s !== filterStatus) return false;
-    if(q){
-      const hay = [c.container,c.description,c.notes,c.delivery_address,c.mx_driver,c.in_bond].join(' ').toLowerCase();
-      if(!hay.includes(q)) return false;
-    }
+  const q=searchQ.toLowerCase().trim();
+  let list=allRows.filter(c=>{
+    if(filterCust && c.customer!==filterCust) return false;
+    if(filterSize && c.size!==filterSize) return false;
+    const s=autoStatus(c);
+    if(filterStatus && s!==filterStatus) return false;
+    if(q){ const hay=[c.container,c.description,c.notes,c.delivery_address,c.mx_driver,c.in_bond].join(' ').toLowerCase(); if(!hay.includes(q)) return false; }
     return true;
   });
-
-  document.getElementById('count-label').textContent =
-    `显示 ${list.length} / ${allRows.length} 柜`;
-
-  if(!list.length){
-    document.getElementById('tbody').innerHTML = `<tr><td colspan="25" class="no-data">暂无数据</td></tr>`;
-    return;
-  }
-
-  document.getElementById('tbody').innerHTML = list.map((c,i)=>{
-    const s = autoStatus(c);
-    const custCls = c.customer==='Yingsheng' ? 'b-ys' : 'b-mt';
-    const price = c.price ? `<span class="price-cell">$${Number(c.price).toLocaleString()}</span>` : '<span style="color:#ccc">—</span>';
-    const cbpHold = (c.cbp_hold && c.cbp_hold!='0') ? `<span class="hold-flag">⚠️ YES</span>` : '<span class="cross">—</span>';
-    return `<tr>
-      <td style="text-align:center;color:#999;font-size:11px">${i+1}</td>
-      <td><span class="badge ${custCls}">${esc(c.customer)}</span></td>
-      <td><b style="font-family:monospace;font-size:12px;color:#1a3a5c">${esc(c.container)}</b></td>
-      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${esc(c.description||'')}">${esc(c.description||'—')}</td>
-      <td style="color:#555">${esc(c.size||'—')}</td>
-      <td style="text-align:right;color:#555">${c.qty||'—'}</td>
-      <td style="color:#555;white-space:nowrap">${esc(c.weight||'—')}</td>
-      <td>${dateCell(c.etd)}</td>
-      <td>${dateCell(c.eta)}</td>
-      <td>${checkCell(c.isf_filed)}</td>
-      <td style="font-family:monospace;font-size:11px;color:#444">${esc(c.in_bond||'—')}</td>
-      <td>${dateCell(c.m_arrived)}</td>
-      <td>${dateCell(c.m_unloaded)}</td>
-      <td>${dateCell(c.m_cleared)}</td>
-      <td>${cbpHold}</td>
-      <td>${dateCell(c.m_brownsville)}</td>
-      <td>${dateCell(c.m_mx_customs)}</td>
-      <td>${dateCell(c.m_unpacked)}</td>
-      <td>${dateCell(c.m_delivered)}</td>
-      <td><span class="badge ${S_CLASS[s]}">${S_LABEL[s]}</span></td>
-      <td class="addr-cell" title="${esc(c.delivery_address||'')}">${esc(c.delivery_address||'—')}</td>
-      <td class="driver-cell" title="${esc(c.mx_driver||'')}">${esc(c.mx_driver||'—')}</td>
-      <td style="font-size:11px;color:#555;white-space:normal;max-width:140px" title="${esc(c.consignee_contact||'')}">${esc(c.consignee_contact||'—')}</td>
-      <td>${price}</td>
-      <td class="notes-cell" title="${esc(c.notes||'')}">${esc(c.notes||'—')}</td>
-    </tr>`;
+  document.getElementById('count-label').textContent='显示 '+list.length+' / '+allRows.length+' 柜';
+  if(!list.length){ document.getElementById('tbody').innerHTML='<tr><td colspan="25" class="no-data">暂无数据</td></tr>'; return; }
+  document.getElementById('tbody').innerHTML=list.map((c,i)=>{
+    const s=autoStatus(c);
+    const custCls=c.customer==='Yingsheng'?'b-ys':'b-mt';
+    const price=c.price?'<span class="price-cell">$'+Number(c.price).toLocaleString()+'</span>':'<span style="color:#ccc">—</span>';
+    const cbpHold=(c.cbp_hold&&c.cbp_hold!='0')?'<span class="hold-flag">⚠️ YES</span>':'<span class="cross">—</span>';
+    return '<tr>'
+      +'<td style="text-align:center;color:#999;font-size:11px">'+(i+1)+'</td>'
+      +'<td><span class="badge '+custCls+'">'+esc(c.customer)+'</span></td>'
+      +'<td><b style="font-family:monospace;font-size:12px;color:#1a3a5c">'+esc(c.container)+'</b></td>'
+      +'<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis" title="'+esc(c.description||'')+'">'+esc(c.description||'—')+'</td>'
+      +'<td style="color:#555">'+esc(c.size||'—')+'</td>'
+      +'<td style="text-align:right;color:#555">'+(c.qty||'—')+'</td>'
+      +'<td style="color:#555;white-space:nowrap">'+esc(c.weight||'—')+'</td>'
+      +'<td>'+dateCell(c.etd)+'</td>'
+      +'<td>'+dateCell(c.eta)+'</td>'
+      +'<td>'+checkCell(c.isf_filed)+'</td>'
+      +'<td style="font-family:monospace;font-size:11px;color:#444">'+esc(c.in_bond||'—')+'</td>'
+      +'<td>'+dateCell(c.m_arrived)+'</td>'
+      +'<td>'+dateCell(c.m_unloaded)+'</td>'
+      +'<td>'+dateCell(c.m_cleared)+'</td>'
+      +'<td>'+cbpHold+'</td>'
+      +'<td>'+dateCell(c.m_brownsville)+'</td>'
+      +'<td>'+dateCell(c.m_mx_customs)+'</td>'
+      +'<td>'+dateCell(c.m_unpacked)+'</td>'
+      +'<td>'+dateCell(c.m_delivered)+'</td>'
+      +'<td><span class="badge '+S_CLASS[s]+'">'+S_LABEL[s]+'</span></td>'
+      +'<td class="addr-cell" title="'+esc(c.delivery_address||'')+'">'+esc(c.delivery_address||'—')+'</td>'
+      +'<td class="driver-cell" title="'+esc(c.mx_driver||'')+'">'+esc(c.mx_driver||'—')+'</td>'
+      +'<td style="font-size:11px;color:#555;white-space:normal;max-width:140px" title="'+esc(c.consignee_contact||'')+'">'+esc(c.consignee_contact||'—')+'</td>'
+      +'<td>'+price+'</td>'
+      +'<td class="notes-cell" title="'+esc(c.notes||'')+'">'+esc(c.notes||'—')+'</td>'
+      +'</tr>';
   }).join('');
 }
 
-// ── Event listeners ─────────────────────────────────────────────────────
-document.getElementById('search').addEventListener('input', e=>{
-  searchQ = e.target.value; render();
-});
-document.getElementById('status-filter').addEventListener('change', e=>{
-  filterStatus = e.target.value;
+// ── Events ────────────────────────────────────────────────────────────────
+document.getElementById('search').addEventListener('input',e=>{ searchQ=e.target.value; render(); });
+document.getElementById('status-filter').addEventListener('change',e=>{
+  filterStatus=e.target.value;
   document.querySelectorAll('#stat-chips .chip').forEach(x=>x.classList.remove('active-chip'));
-  const active = document.querySelector(`#stat-chips .chip[data-s="${filterStatus}"]`);
-  if(active) active.classList.add('active-chip');
+  const a=document.querySelector('#stat-chips .chip[data-s="'+filterStatus+'"]');
+  if(a) a.classList.add('active-chip');
   render();
 });
-document.getElementById('size-filter').addEventListener('change', e=>{
-  filterSize = e.target.value; render();
-});
+document.getElementById('size-filter').addEventListener('change',e=>{ filterSize=e.target.value; render(); });
 document.querySelectorAll('#cust-tabs .tab').forEach(t=>{
   t.addEventListener('click',()=>{
+    if(loggedInUser&&loggedInUser.role!=='admin') return; // customers can't switch tabs
     document.querySelectorAll('#cust-tabs .tab').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
-    filterCust = t.dataset.cust;
+    filterCust=t.dataset.cust;
     render();
   });
 });
 
-// ── Init ────────────────────────────────────────────────────────────────
 loadData();
-</script>
+<\/script>
 </body>
 </html>
