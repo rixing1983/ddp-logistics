@@ -327,12 +327,12 @@ const STATUS_CLASS = {
 };
 function hasMark(v) { return v && v !== '/' && v !== '—' && v !== '-' && String(v).trim() !== ''; }
 function autoStatus(c) {
-  if (hasMark(c.delivered_date)) return 'DELIVERED';
+  if (hasMark(c.m_delivered)) return 'DELIVERED';
   if (hasMark(c.cbp_hold)) return 'CBP_HOLD';
-  if (hasMark(c.mx_customs) || hasMark(c.unpacked)) return 'IN_TRANSIT_MX';
-  if (hasMark(c.arrived_brownsville)) return 'IN_TRANSIT_MX';
-  if (hasMark(c.cbp_released) || hasMark(c.unloaded)) return 'CLEARED';
-  if (hasMark(c.arrived_port)) return 'IN_BOND';
+  if (hasMark(c.m_mx_customs) || hasMark(c.m_unpacked)) return 'IN_TRANSIT_MX';
+  if (hasMark(c.m_brownsville)) return 'IN_TRANSIT_MX';
+  if (hasMark(c.m_cleared) || hasMark(c.m_unloaded)) return 'CLEARED';
+  if (hasMark(c.m_arrived)) return 'IN_BOND';
   if (hasMark(c.isf_filed)) return 'ISF_FILED';
   return 'PENDING';
 }
@@ -355,15 +355,18 @@ function showSection(name) {
 async function loadDashboard() {
   try {
     const stats = await api('/api/stats');
+    const byS = Object.fromEntries((stats.byStatus||[]).map(r=>[r.status,r.n]));
+    const byC = Object.fromEntries((stats.byCustomer||[]).map(r=>[r.customer,r.n]));
+    const total = (stats.byStatus||[]).reduce((a,r)=>a+r.n,0);
     const cards = [
-      {label:'全部集装箱', value: stats.total, icon:'📦', color:'blue'},
-      {label:'In-Bond/在途', value: (stats.by_status?.IN_BOND||0)+(stats.by_status?.IN_TRANSIT_MX||0), icon:'🚢', color:'indigo'},
-      {label:'已送达', value: stats.by_status?.DELIVERED||0, icon:'✅', color:'green'},
-      {label:'海关扣押', value: stats.by_status?.CBP_HOLD||0, icon:'⚠️', color:'red'},
-      {label:'Yingsheng', value: stats.by_customer?.Yingsheng||0, icon:'🟣', color:'purple'},
-      {label:'MYTOP', value: stats.by_customer?.MYTOP||0, icon:'🟠', color:'orange'},
-      {label:'待付账单', value: stats.invoice_pending||0, icon:'📄', color:'yellow'},
-      {label:'总收入(USD)', value: '$'+(stats.total_revenue||0).toLocaleString(), icon:'💵', color:'teal'},
+      {label:'全部集装箱', value: total, icon:'📦', color:'blue'},
+      {label:'In-Bond/在途', value: (byS.IN_BOND||0)+(byS.IN_TRANSIT_MX||0), icon:'🚢', color:'indigo'},
+      {label:'已送达', value: byS.DELIVERED||0, icon:'✅', color:'green'},
+      {label:'海关扣押', value: byS.CBP_HOLD||0, icon:'⚠️', color:'red'},
+      {label:'Yingsheng', value: byC.Yingsheng||0, icon:'🟣', color:'purple'},
+      {label:'MYTOP', value: byC.MYTOP||0, icon:'🟠', color:'orange'},
+      {label:'待付账单', value: stats.pending||0, icon:'📄', color:'yellow'},
+      {label:'总收入(USD)', value: '$'+(stats.revenue||0).toLocaleString(), icon:'💵', color:'teal'},
     ];
     document.getElementById('stat-cards').innerHTML = cards.map(c=>`
       <div class="stat-card">
@@ -377,7 +380,7 @@ async function loadDashboard() {
     document.getElementById('recent-containers').innerHTML = recent.map(c=>{
       const st = autoStatus(c);
       return `<div class="flex items-center justify-between py-1">
-        <span class="text-sm font-mono text-slate-300">${esc(c.container_number)}</span>
+        <span class="text-sm font-mono text-slate-300">${esc(c.container)}</span>
         <span class="badge ${STATUS_CLASS[st]}">${STATUS_LABEL[st]}</span>
       </div>`;
     }).join('');
@@ -415,7 +418,7 @@ function renderContainerTable() {
   const cu = document.getElementById('c-customer').value;
   let list = containers.filter(c=>{
     const status = autoStatus(c);
-    const match = !q || c.container_number?.toLowerCase().includes(q) || c.customer?.toLowerCase().includes(q) || c.product_name?.toLowerCase().includes(q);
+    const match = !q || c.container?.toLowerCase().includes(q) || c.customer?.toLowerCase().includes(q) || c.description?.toLowerCase().includes(q);
     return match && (!st || status===st) && (!cu || c.customer===cu);
   });
   const tb = document.getElementById('container-tbody');
@@ -424,14 +427,14 @@ function renderContainerTable() {
     const st = autoStatus(c);
     const custBadge = c.customer==='Yingsheng' ? 'badge-indigo' : 'badge-orange';
     return `<tr>
-      <td><span class="font-mono text-blue-300 cursor-pointer hover:underline" onclick="openDetail(${c.id})">${esc(c.container_number)}</span></td>
+      <td><span class="font-mono text-blue-300 cursor-pointer hover:underline" onclick="openDetail(${c.id})">${esc(c.container)}</span></td>
       <td><span class="badge ${custBadge}">${esc(c.customer)}</span></td>
-      <td class="text-slate-400">${esc(c.product_name||'—')}</td>
+      <td class="text-slate-400">${esc(c.description||'—')}</td>
       <td><span class="badge ${STATUS_CLASS[st]}">${STATUS_LABEL[st]}</span></td>
       <td class="text-slate-400">${hasMark(c.isf_filed)?'<span class="text-green-400">✓</span>':'<span class="text-slate-600">—</span>'}</td>
-      <td class="text-slate-400">${esc(c.arrived_port||'—')}</td>
-      <td class="text-slate-400">${esc(c.mx_customs||'—')}</td>
-      <td class="text-slate-400 max-w-32 truncate">${esc(c.destination||'—')}</td>
+      <td class="text-slate-400">${esc(c.m_arrived||'—')}</td>
+      <td class="text-slate-400">${esc(c.m_mx_customs||'—')}</td>
+      <td class="text-slate-400 max-w-32 truncate">${esc(c.delivery_address||'—')}</td>
       <td>
         <button onclick="openContainerModal(${c.id})" class="btn btn-ghost text-xs mr-1">编辑</button>
         <button onclick="deleteContainer(${c.id})" class="btn btn-danger text-xs">删除</button>
@@ -440,16 +443,28 @@ function renderContainerTable() {
   }).join('');
 }
 
+// Map: form input suffix → DB column name
+const FIELD_MAP = {
+  container_number:'container', product_name:'description', weight_kg:'weight',
+  cbk:'in_bond', destination:'delivery_address', consignee:'consignee_contact',
+  driver:'mx_driver', driver_phone:'mx_driver',
+  cost_usd:'cost', quote_usd:'price',
+  arrived_port:'m_arrived', unloaded:'m_unloaded', cbp_released:'m_cleared',
+  arrived_brownsville:'m_brownsville', mx_customs:'m_mx_customs',
+  unpacked:'m_unpacked', delivered_date:'m_delivered',
+  customer:'customer', size:'size', isf_filed:'isf_filed',
+  cbp_hold:'cbp_hold', notes:'notes'
+};
 function openContainerModal(id=null) {
   editingContainerId = id;
   const fields = ['container_number','customer','product_name','size','weight_kg','cbk','destination','consignee',
-    'driver','driver_phone','cost_usd','quote_usd','isf_filed','arrived_port','unloaded','cbp_released',
+    'driver','cost_usd','quote_usd','isf_filed','arrived_port','unloaded','cbp_released',
     'cbp_hold','arrived_brownsville','mx_customs','unpacked','delivered_date','notes'];
   if (id) {
     const c = containers.find(x=>x.id===id);
     document.getElementById('c-modal-title').textContent = '编辑集装箱';
     document.getElementById('c-modal-save').textContent = '保存修改';
-    fields.forEach(f=>{ const el=document.getElementById('cm-'+f); if(el) el.value=c[f]||''; });
+    fields.forEach(f=>{ const el=document.getElementById('cm-'+f); if(el) el.value=c[FIELD_MAP[f]||f]||''; });
   } else {
     document.getElementById('c-modal-title').textContent = '新建集装箱';
     document.getElementById('c-modal-save').textContent = '创建集装箱';
@@ -460,11 +475,11 @@ function openContainerModal(id=null) {
 
 async function saveContainer() {
   const fields = ['container_number','customer','product_name','size','weight_kg','cbk','destination','consignee',
-    'driver','driver_phone','cost_usd','quote_usd','isf_filed','arrived_port','unloaded','cbp_released',
+    'driver','cost_usd','quote_usd','isf_filed','arrived_port','unloaded','cbp_released',
     'cbp_hold','arrived_brownsville','mx_customs','unpacked','delivered_date','notes'];
   const data = {};
-  fields.forEach(f=>{ const el=document.getElementById('cm-'+f); if(el) data[f]=el.value; });
-  if (!data.container_number) { alert('集装箱号不能为空'); return; }
+  fields.forEach(f=>{ const el=document.getElementById('cm-'+f); if(el) data[FIELD_MAP[f]||f]=el.value; });
+  if (!data.container) { alert('集装箱号不能为空'); return; }
   try {
     if (editingContainerId) {
       const updated = await api('/api/containers/'+editingContainerId,'PUT',data);
@@ -494,27 +509,27 @@ function openDetail(id) {
   if (!c) return;
   const st = autoStatus(c);
   const milestones = [
-    {label:'ISF报关',val:c.isf_filed},{label:'到港',val:c.arrived_port},{label:'卸船',val:c.unloaded},
-    {label:'CBP放行',val:c.cbp_released},{label:'CBP扣押',val:c.cbp_hold},{label:'抵达Brownsville',val:c.arrived_brownsville},
-    {label:'墨西哥海关',val:c.mx_customs},{label:'拆箱完成',val:c.unpacked},{label:'配送完成',val:c.delivered_date}
+    {label:'ISF报关',val:c.isf_filed},{label:'到港',val:c.m_arrived},{label:'卸船',val:c.m_unloaded},
+    {label:'CBP放行',val:c.m_cleared},{label:'CBP扣押',val:c.cbp_hold},{label:'抵达Brownsville',val:c.m_brownsville},
+    {label:'墨西哥海关',val:c.m_mx_customs},{label:'拆箱完成',val:c.m_unpacked},{label:'配送完成',val:c.m_delivered}
   ];
-  document.getElementById('detail-title').textContent = c.container_number + ' — ' + (c.product_name||'');
+  document.getElementById('detail-title').textContent = c.container + ' — ' + (c.description||'');
   document.getElementById('detail-body').innerHTML = `
     <div class="grid grid-cols-2 gap-6 mb-6">
       <div class="space-y-2 text-sm">
         <div class="flex justify-between"><span class="text-slate-400">客户</span><span class="font-bold text-white">${esc(c.customer)}</span></div>
         <div class="flex justify-between"><span class="text-slate-400">尺寸</span><span>${esc(c.size||'—')}</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">重量</span><span>${c.weight_kg?c.weight_kg+'kg':'—'}</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">目的地</span><span>${esc(c.destination||'—')}</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">收货人</span><span>${esc(c.consignee||'—')}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">重量</span><span>${c.weight?c.weight:'—'}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">目的地</span><span>${esc(c.delivery_address||'—')}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">收货人</span><span>${esc(c.consignee_contact||'—')}</span></div>
         <div class="flex justify-between"><span class="text-slate-400">状态</span><span class="badge ${STATUS_CLASS[st]}">${STATUS_LABEL[st]}</span></div>
       </div>
       <div class="space-y-2 text-sm">
-        <div class="flex justify-between"><span class="text-slate-400">驾驶员</span><span>${esc(c.driver||'—')}</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">电话</span><span>${esc(c.driver_phone||'—')}</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">费用成本</span><span class="text-red-300">${c.cost_usd?'$'+Number(c.cost_usd).toLocaleString():'—'}</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">对外报价</span><span class="text-green-300">${c.quote_usd?'$'+Number(c.quote_usd).toLocaleString():'—'}</span></div>
-        <div class="flex justify-between"><span class="text-slate-400">利润</span><span class="font-black ${(c.quote_usd-c.cost_usd)>=0?'text-green-400':'text-red-400'}">${c.quote_usd&&c.cost_usd?'$'+(c.quote_usd-c.cost_usd).toLocaleString():'—'}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">驾驶员</span><span>${esc(c.mx_driver||'—')}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">费用成本</span><span class="text-red-300">${c.cost?'$'+Number(c.cost).toLocaleString():'—'}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">对外报价</span><span class="text-green-300">${c.price?'$'+Number(c.price).toLocaleString():'—'}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">利润</span><span class="font-black ${(c.price-c.cost)>=0?'text-green-400':'text-red-400'}">${c.price&&c.cost?'$'+(c.price-c.cost).toLocaleString():'—'}</span></div>
+        <div class="flex justify-between"><span class="text-slate-400">GPS追踪</span><span class="text-blue-400 text-xs truncate max-w-36">${c.gps?`<a href="${esc(c.gps)}" target="_blank" class="underline">查看</a>`:'—'}</span></div>
       </div>
     </div>
     <div class="border-t border-slate-700 pt-4">
