@@ -291,15 +291,33 @@ app.post('/api/containers', auth, adminOnly, (req, res) => {
   res.json({ id: r.lastInsertRowid });
 });
 
+const CUSTOMER_EDITABLE_FIELDS = ['notes', 'consignee_contact', 'delivery_address'];
+const VENDOR_EDITABLE_FIELDS = ['notes', 'mx_driver'];
+
 app.put('/api/containers/:id', auth, (req, res) => {
-  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Admin only' });
-  const fields = CONTAINER_FIELDS.filter(f => req.body[f] !== undefined);
+  const row = db.prepare('SELECT * FROM containers WHERE id=?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'Not found' });
+
+  let allowedFields;
+  if (req.user.role === 'admin') {
+    allowedFields = CONTAINER_FIELDS;
+  } else if (req.user.role === 'customer') {
+    if (row.customer !== req.user.company) return res.status(403).json({ error: 'Forbidden' });
+    allowedFields = CUSTOMER_EDITABLE_FIELDS;
+  } else if (req.user.role === 'vendor') {
+    if (row.shipper !== req.user.company) return res.status(403).json({ error: 'Forbidden' });
+    allowedFields = VENDOR_EDITABLE_FIELDS;
+  } else {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+
+  const fields = allowedFields.filter(f => req.body[f] !== undefined);
   if (!fields.length) return res.json({ ok: true });
   const vals = [...fields.map(f => req.body[f]), req.params.id];
   db.prepare(`UPDATE containers SET ${fields.map(f=>`${f}=?`).join(',')},updated_at=datetime('now') WHERE id=?`).run(...vals);
   const updated = db.prepare('SELECT * FROM containers WHERE id=?').get(req.params.id);
   io.emit('container_updated', updated);
-  res.json({ ok: true });
+  res.json({ ok: true, data: updated });
 });
 
 app.delete('/api/containers/:id', auth, adminOnly, (req, res) => {
@@ -316,6 +334,66 @@ app.get('/api/view/containers', (req, res) => {
 });
 
 
+
+// ── CSV Bulk Upload (admin only) ───────────────────────────────────
+app.post('/api/admin/upload', auth, adminOnly,
+  express.text({ type: '*/*', limit: '5mb' }),
+  (req, res) => {
+    const content = req.body;
+    if (!content || typeof content !== 'string') return res.status(400).json({ error: 'No content' });
+
+    function parseCSVLine(line) {
+      const result = []; let cur = '', inQ = false;
+      for (let i = 0; i < line.length; i++) {
+        if (line[i] === '"') { inQ = !inQ; }
+        else if (line[i] === ',' && !inQ) { result.push(cur); cur = ''; }
+        else { cur += line[i]; }
+      }
+      result.push(cur);
+      return result.map(v => v.trim());
+    }
+
+    const lines = content.replace(/\r/g, '').split('\n').filter(l => l.trim());
+    if (lines.length < 2) return res.status(400).json({ error: 'File too short (need header + at least 1 row)' });
+
+    const headers = parseCSVLine(lines[0]);
+    let updated = 0, inserted = 0, errors = 0;
+
+    try {
+      db.transaction(() => {
+        for (let i = 1; i < lines.length; i++) {
+          try {
+            const vals = parseCSVLine(lines[i]);
+            const row = {};
+            headers.forEach((h, idx) => { row[h] = vals[idx] !== undefined ? vals[idx] : ''; });
+            const containerNum = row['container'];
+            if (!containerNum) continue;
+
+            const existing = db.prepare('SELECT id FROM containers WHERE container=?').get(containerNum);
+            const fields = CONTAINER_FIELDS.filter(f => row[f] !== undefined && row[f] !== '');
+            if (!fields.length) continue;
+
+            if (existing) {
+              const setClause = fields.map(f => `${f}=?`).join(',');
+              db.prepare(`UPDATE containers SET ${setClause},updated_at=datetime('now') WHERE container=?`)
+                .run(...fields.map(f => row[f]), containerNum);
+              const updRow = db.prepare('SELECT * FROM containers WHERE container=?').get(containerNum);
+              io.emit('container_updated', updRow);
+              updated++;
+            } else {
+              const fl = fields.join(','), ph = fields.map(() => '?').join(',');
+              db.prepare(`INSERT INTO containers (${fl}) VALUES (${ph})`).run(...fields.map(f => row[f]));
+              inserted++;
+            }
+          } catch (e) { errors++; }
+        }
+      })();
+      res.json({ ok: true, updated, inserted, errors });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  }
+);
 
 // ────────────────────────────────────────────────────────────────────
 //  INVOICES
@@ -350,6 +428,16 @@ app.delete('/api/invoices/:id', auth, adminOnly, (req, res) => {
 // Channel naming: "admin-customer:Yingsheng", "admin-vendor:RF EXPRESS", "general"
 function canReadChannel(user, channel) {
   if (user.role === 'admin') return true;
+  // Per-container channels: container:{id}
+  if (channel && channel.startsWith('container:')) {
+    const cid = parseInt(channel.split(':')[1]);
+    if (!cid) return false;
+    const c = db.prepare('SELECT customer, shipper FROM containers WHERE id=?').get(cid);
+    if (!c) return false;
+    if (user.role === 'customer') return c.customer === user.company;
+    if (user.role === 'vendor') return c.shipper === user.company;
+    return false;
+  }
   if (user.role === 'customer') return channel === `admin-customer:${user.company}` || channel === 'general';
   if (user.role === 'vendor') return channel === `admin-vendor:${user.company}` || channel === 'general';
   return false;
@@ -416,6 +504,11 @@ io.on('connection', socket => {
     channels.forEach(c => socket.join(c.channel));
     socket.on('join_channel', ch => socket.join(ch));
   }
+  // Per-container chat channels
+  socket.on('join_container', (containerId) => {
+    const channel = `container:${containerId}`;
+    if (canReadChannel(u, channel)) socket.join(channel);
+  });
 });
 
 // ────────────────────────────────────────────────────────────────────

@@ -3,75 +3,124 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>DDP物流 — 集装箱追踪表</title>
+<title>DDP物流 — 集装箱追踪</title>
 <script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
 <style>
-  body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#f0f4f8;margin:0}
-  .wrap{max-width:100%;overflow-x:auto}
-  table{border-collapse:collapse;width:max-content;min-width:100%}
-  th{background:#1e3a5f;color:#fff;font-size:11px;padding:8px 10px;white-space:nowrap;position:sticky;top:0;z-index:10}
-  td{font-size:12px;padding:6px 10px;border-bottom:1px solid #e5eaf0;vertical-align:top;white-space:nowrap}
-  tr:hover td{background:#eef4fb}
-  .badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
-  .b-ys{background:#dbeafe;color:#1e40af}
-  .b-mt{background:#fce7f3;color:#9d174d}
-  .b-pend{background:#f3f4f6;color:#374151}
-  .b-isf{background:#eff6ff;color:#1d4ed8}
-  .b-bond{background:#f5f3ff;color:#6d28d9}
-  .b-hold{background:#fef2f2;color:#dc2626;animation:blink 1.2s ease-in-out infinite}
-  .b-clr{background:#ecfdf5;color:#059669}
-  .b-trn{background:#fffbeb;color:#d97706}
-  .b-del{background:#f0fdf4;color:#15803d}
-  @keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
-  .date-cell{font-family:monospace;font-size:11px;color:#374151}
-  .tick{color:#16a34a;font-weight:700}
-  .cross{color:#d1d5db}
-  .hold-flag{background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700}
-  .price-cell{font-family:monospace;color:#1e40af;font-weight:700}
-  .addr-cell{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .driver-cell{max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .notes-cell{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b7280}
-  .no-data{text-align:center;padding:40px;color:#9ca3af}
-  .chip{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:all .15s}
-  .chip:hover{filter:brightness(.95)}
-  .active-chip{border-color:#1e3a5f!important;box-shadow:0 0 0 2px #1e3a5f22}
-  .chip-all{background:#e5eaf0;color:#374151}
-  .chip-pending{background:#f3f4f6;color:#374151}
-  .chip-isf{background:#eff6ff;color:#1d4ed8}
-  .chip-inbond{background:#f5f3ff;color:#6d28d9}
-  .chip-hold{background:#fef2f2;color:#dc2626}
-  .chip-cleared{background:#ecfdf5;color:#059669}
-  .chip-transit{background:#fffbeb;color:#d97706}
-  .chip-delivered{background:#f0fdf4;color:#15803d}
-  .tab{cursor:pointer;padding:6px 18px;border-radius:8px;font-size:13px;font-weight:700;transition:all .15s}
-  .tab.active{background:#1e3a5f;color:#fff}
-  .tab:not(.active){color:#374151}
-  .tab:not(.active):hover{background:#e5eaf0}
-  #user-banner{display:none;background:linear-gradient(to right,#1e3a5f,#2563eb);color:#fff;padding:10px 20px;font-size:13px}
+body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:#f0f4f8;margin:0}
+.wrap{max-width:100%;overflow-x:auto}
+table{border-collapse:collapse;width:max-content;min-width:100%}
+th{background:#1e3a5f;color:#fff;font-size:11px;padding:8px 10px;white-space:nowrap;position:sticky;top:0;z-index:10}
+td{font-size:12px;padding:6px 10px;border-bottom:1px solid #e5eaf0;vertical-align:middle;white-space:nowrap}
+tr:hover td{background:#eef4fb}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700}
+.b-ys{background:#dbeafe;color:#1e40af}.b-mt{background:#fce7f3;color:#9d174d}
+.b-pend{background:#f3f4f6;color:#374151}.b-isf{background:#eff6ff;color:#1d4ed8}
+.b-bond{background:#f5f3ff;color:#6d28d9}.b-hold{background:#fef2f2;color:#dc2626;animation:blink 1.2s ease-in-out infinite}
+.b-clr{background:#ecfdf5;color:#059669}.b-trn{background:#fffbeb;color:#d97706}.b-del{background:#f0fdf4;color:#15803d}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.5}}
+.date-cell{font-family:monospace;font-size:11px;color:#374151}
+.tick{color:#16a34a;font-weight:700}.cross{color:#d1d5db}
+.hold-flag{background:#fef2f2;color:#dc2626;padding:1px 6px;border-radius:4px;font-size:11px;font-weight:700}
+.price-cell{font-family:monospace;color:#1e40af;font-weight:700}
+.addr-cell{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.driver-cell{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.notes-cell{max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#6b7280}
+.no-data{text-align:center;padding:40px;color:#9ca3af}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:999px;font-size:12px;font-weight:700;cursor:pointer;border:1.5px solid transparent;transition:all .15s}
+.chip:hover{filter:brightness(.95)}.active-chip{border-color:#1e3a5f!important;box-shadow:0 0 0 2px #1e3a5f22}
+.chip-all{background:#e5eaf0;color:#374151}.chip-pending{background:#f3f4f6;color:#374151}
+.chip-isf{background:#eff6ff;color:#1d4ed8}.chip-inbond{background:#f5f3ff;color:#6d28d9}
+.chip-hold{background:#fef2f2;color:#dc2626}.chip-cleared{background:#ecfdf5;color:#059669}
+.chip-transit{background:#fffbeb;color:#d97706}.chip-delivered{background:#f0fdf4;color:#15803d}
+.tab{cursor:pointer;padding:6px 18px;border-radius:8px;font-size:13px;font-weight:700;transition:all .15s}
+.tab.active{background:#1e3a5f;color:#fff}.tab:not(.active){color:#374151}.tab:not(.active):hover{background:#e5eaf0}
+#user-banner{display:none;background:linear-gradient(to right,#1e3a5f,#2563eb);color:#fff;padding:10px 20px;font-size:13px}
+
+/* Inline editing */
+.edit-wrap{position:relative;display:inline-block;min-width:30px;cursor:pointer;border-radius:4px;padding:1px 4px;transition:background .15s}
+.edit-wrap[data-editable="1"]:hover{background:#fffbeb;outline:1px dashed #f59e0b}
+.edit-wrap[data-editable="1"]:hover::after{content:"✏️";font-size:9px;margin-left:3px;opacity:.6}
+.edit-area-wrap{display:flex;flex-direction:column;gap:3px;min-width:150px}
+.edit-input{width:100%;padding:3px 6px;border:1.5px solid #2563eb;border-radius:4px;font-size:12px;background:#fff;resize:vertical}
+.edit-actions{display:flex;gap:4px}
+.btn-save{background:#2563eb;color:#fff;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:700}
+.btn-cancel{background:#e5e7eb;color:#374151;border:none;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:11px}
+
+/* Map */
+#map-panel{display:none;background:#fff;border-bottom:2px solid #e5eaf0}
+#ddp-map{height:420px;z-index:1}
+
+/* Chat */
+.chat-btn{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;background:#e0e7ff;color:#4f46e5;font-size:13px;cursor:pointer;border:none;transition:all .15s;flex-shrink:0}
+.chat-btn:hover{background:#4f46e5;color:#fff}
+#chat-overlay{display:none;position:fixed;inset:0;z-index:900;pointer-events:none}
+#chat-overlay.open{display:block;pointer-events:all}
+#chat-box{position:fixed;bottom:0;right:20px;background:#fff;border-radius:16px 16px 0 0;width:360px;height:520px;display:flex;flex-direction:column;box-shadow:0 -4px 24px #0003;z-index:901}
+.chat-header{background:#1e3a5f;color:#fff;padding:12px 16px;border-radius:16px 16px 0 0;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:700;gap:8px}
+.chat-header-left{display:flex;align-items:center;gap:8px;overflow:hidden}
+.chat-title-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chat-msgs{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#f8fafc}
+.chat-msg{max-width:82%;padding:8px 12px;border-radius:12px;font-size:12px;line-height:1.5;word-break:break-word}
+.chat-msg.mine{background:#2563eb;color:#fff;align-self:flex-end;border-radius:12px 12px 0 12px}
+.chat-msg.other{background:#fff;color:#111;align-self:flex-start;border-radius:12px 12px 12px 0;box-shadow:0 1px 3px #0001}
+.chat-msg-meta{font-size:10px;opacity:.65;margin-bottom:2px;font-weight:600}
+.chat-meta-right{font-size:10px;opacity:.6;text-align:right;margin-top:2px}
+.chat-input-area{padding:12px;border-top:1px solid #e5eaf0;display:flex;gap:8px;background:#fff}
+.chat-input{flex:1;padding:8px 12px;border:1.5px solid #e5e7eb;border-radius:20px;font-size:13px;outline:none;transition:border .15s}
+.chat-input:focus{border-color:#2563eb}
+.chat-send{background:#2563eb;color:#fff;border:none;width:38px;height:38px;border-radius:50%;cursor:pointer;font-size:18px;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+#global-chat-btn{position:fixed;bottom:24px;right:24px;background:#1e3a5f;color:#fff;width:54px;height:54px;border-radius:50%;border:none;cursor:pointer;font-size:22px;box-shadow:0 4px 16px #0004;z-index:800;display:none;align-items:center;justify-content:center}
+#notif-dot{position:absolute;top:8px;right:8px;width:11px;height:11px;background:#ef4444;border-radius:50%;border:2px solid #fff;display:none}
+
+/* Upload */
+#upload-modal{display:none;position:fixed;inset:0;background:#0007;z-index:1000;align-items:center;justify-content:center}
+#upload-modal.open{display:flex}
+#upload-box{background:#fff;border-radius:16px;padding:28px;width:500px;max-width:95vw;box-shadow:0 8px 32px #0003}
+.drop-zone{border:2px dashed #d1d5db;border-radius:12px;padding:36px 24px;text-align:center;cursor:pointer;transition:all .2s}
+.drop-zone.drag-over{border-color:#2563eb;background:#eff6ff}
+.drop-zone:hover{border-color:#6b7280}
+
+/* Toast */
+#toast{position:fixed;top:20px;right:20px;padding:11px 20px;border-radius:10px;font-size:13px;font-weight:600;z-index:2000;display:none;box-shadow:0 4px 16px #0004;transition:all .2s}
+#toast.info{background:#1e3a5f;color:#fff}
+#toast.success{background:#16a34a;color:#fff}
+#toast.error{background:#dc2626;color:#fff}
 </style>
 </head>
 <body>
 
-<!-- 登录用户横幅 -->
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- User banner -->
 <div id="user-banner">
-  <div style="max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between">
+  <div style="max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
     <span>&#128274; <strong id="banner-name"></strong> &middot; <span id="banner-company" style="opacity:.85"></span></span>
-    <button onclick="doLogout()" style="background:rgba(255,255,255,.2);border:none;color:#fff;padding:4px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:700">退出登录</button>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <button id="upload-btn" onclick="openUpload()" style="display:none;background:rgba(255,255,255,.2);border:1px solid rgba(255,255,255,.4);color:#fff;padding:5px 13px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700">&#128190; 上传数据</button>
+      <button onclick="doLogout()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 14px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:700">退出登录</button>
+    </div>
   </div>
 </div>
 
-<!-- 主标题栏 -->
-<div style="background:#1e3a5f;color:#fff;padding:16px 20px">
+<!-- Header -->
+<div style="background:#1e3a5f;color:#fff;padding:14px 20px">
   <div style="max-width:1400px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
     <div>
       <div style="font-size:20px;font-weight:900">&#128674; DDP物流追踪 &mdash; 集装箱总览</div>
       <div style="font-size:12px;opacity:.75;margin-top:2px">中国 &rarr; 美国 &rarr; 墨西哥</div>
     </div>
-    <div style="font-size:13px;font-weight:700;opacity:.9" id="count-label">加载中&hellip;</div>
+    <div style="display:flex;align-items:center;gap:12px">
+      <button id="map-toggle-btn" onclick="toggleMap()" style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.3);color:#fff;padding:6px 16px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;transition:all .2s">&#128506; 路线地图</button>
+      <div id="count-label" style="font-size:13px;font-weight:700;opacity:.9">加载中&hellip;</div>
+    </div>
   </div>
 </div>
 
-<!-- 过滤工具栏 -->
+<!-- Toolbar -->
 <div style="background:#fff;border-bottom:1px solid #e5eaf0;padding:12px 20px">
   <div style="max-width:1400px;margin:0 auto">
     <div id="cust-tabs" style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
@@ -95,13 +144,29 @@
         <option value="40HC">40HC</option>
         <option value="TRANSFER">转运</option>
       </select>
-      <input id="search" placeholder="搜索柜号 / 货描 / 地址…" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;min-width:200px;flex:1">
+      <input id="search" placeholder="搜索柜号 / 货描 / 地址…" style="padding:6px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:13px;min-width:200px;flex:1;outline:none">
     </div>
     <div id="stat-chips" style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap"></div>
   </div>
 </div>
 
-<!-- 表格 -->
+<!-- Map Panel -->
+<div id="map-panel">
+  <div style="padding:8px 20px;background:#f8fafc;border-bottom:1px solid #e5eaf0;display:flex;align-items:center;gap:16px;flex-wrap:wrap">
+    <span style="font-size:12px;font-weight:700;color:#1e3a5f">&#128506; Houston La Port港口 &#8594; Brownsville &#8594; 墨西哥目的地</span>
+    <div style="display:flex;gap:12px;flex-wrap:wrap;font-size:11px;margin-left:auto">
+      <span>&#9679; <span style="color:#9ca3af">待处理/ISF</span></span>
+      <span style="color:#7c3aed">&#9679; In-Bond</span>
+      <span style="color:#dc2626">&#9679; CBP扣押</span>
+      <span style="color:#059669">&#9679; 已放行</span>
+      <span style="color:#d97706">&#9679; 运输中</span>
+      <span style="color:#15803d">&#9679; 已送达</span>
+    </div>
+  </div>
+  <div id="ddp-map"></div>
+</div>
+
+<!-- Table -->
 <div style="max-width:1400px;margin:16px auto;padding:0 12px">
   <div class="wrap" style="background:#fff;border-radius:12px;box-shadow:0 1px 4px #0001;overflow:hidden">
     <table>
@@ -110,12 +175,12 @@
           <th>#</th><th>客户</th><th>柜号</th><th>货描</th><th>尺寸</th><th>数量</th><th>货重</th>
           <th>ETD</th><th>ETA</th><th>ISF</th><th>In-Bond#</th>
           <th>到港</th><th>卸船</th><th>CBP放行</th><th>CBP扣押</th>
-          <th>布朗斯维尔</th><th>墨西哥海关</th><th>拆箱完成</th><th>配送完成</th>
-          <th>状态</th><th>目的地</th><th>司机/联系人</th><th>收货联系人</th><th>报价(USD)</th><th>备注</th>
+          <th>布朗斯维尔</th><th>墨西哥海关</th><th>拆箱</th><th>配送完成</th>
+          <th>状态</th><th>目的地</th><th>司机/联系人</th><th>收货联系人</th><th>报价(USD)</th><th>备注</th><th>💬</th>
         </tr>
       </thead>
       <tbody id="tbody">
-        <tr><td colspan="25" class="no-data">&#9203; 加载中&hellip;</td></tr>
+        <tr><td colspan="26" class="no-data">&#9203; 加载中&hellip;</td></tr>
       </tbody>
     </table>
   </div>
@@ -127,61 +192,142 @@
     <span><span class="badge b-clr">已放行</span> CBP通关</span>
     <span><span class="badge b-trn">运输中</span> 墨西哥境内</span>
     <span><span class="badge b-del">已送达</span> 完成配送</span>
+    <span style="margin-left:12px;color:#b45309">✏️ 点击蓝框字段可直接编辑（需登录）</span>
+  </div>
+</div>
+
+<!-- Global chat FAB -->
+<button id="global-chat-btn" onclick="openGlobalChat()">
+  &#128172;
+  <span id="notif-dot"></span>
+</button>
+
+<!-- Chat panel -->
+<div id="chat-overlay" onclick="if(event.target===this)closeChat()">
+  <div id="chat-box">
+    <div class="chat-header">
+      <div class="chat-header-left">
+        <span style="font-size:18px">&#128172;</span>
+        <span class="chat-title-text" id="chat-title">消息</span>
+      </div>
+      <button onclick="closeChat()" style="background:rgba(255,255,255,.2);border:none;color:#fff;cursor:pointer;font-size:20px;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0">&times;</button>
+    </div>
+    <div class="chat-msgs" id="chat-msgs">
+      <div style="text-align:center;color:#9ca3af;padding:24px;font-size:12px">加载中…</div>
+    </div>
+    <div class="chat-input-area" id="chat-input-area">
+      <input class="chat-input" id="chat-input" placeholder="输入消息，Enter发送…" maxlength="500">
+      <button class="chat-send" onclick="sendMsg()" title="发送">&#10148;</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload modal -->
+<div id="upload-modal">
+  <div id="upload-box">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+      <span style="font-size:17px;font-weight:800;color:#1e3a5f">&#128190; 批量上传 / 更新货柜数据</span>
+      <button onclick="closeUpload()" style="background:none;border:none;cursor:pointer;font-size:22px;color:#9ca3af;line-height:1">&times;</button>
+    </div>
+    <p style="font-size:12px;color:#6b7280;margin-bottom:16px;line-height:1.6">上传 <b>CSV文件</b>，系统自动按柜号匹配更新，不存在则新增。<br>CSV首行必须是字段名（如 <code style="background:#f3f4f6;padding:1px 4px;border-radius:3px">container, customer, status, m_delivered</code> 等）。</p>
+    <div class="drop-zone" id="drop-zone" onclick="document.getElementById('csv-file').click()">
+      <div style="font-size:36px;margin-bottom:10px">&#128196;</div>
+      <div style="font-size:14px;font-weight:700;color:#374151">点击选择 或 拖入 CSV 文件</div>
+      <div style="font-size:12px;color:#9ca3af;margin-top:6px">支持 .csv 格式，最大 5MB</div>
+      <input type="file" id="csv-file" accept=".csv,text/csv" style="display:none" onchange="handleFileSelect(this.files[0])">
+    </div>
+    <div id="upload-status" style="margin-top:12px;font-size:12px;line-height:1.7;display:none;background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:10px 14px;color:#15803d"></div>
+    <div id="upload-error" style="margin-top:12px;font-size:12px;display:none;background:#fef2f2;border:1px solid #fca5a5;border-radius:8px;padding:10px 14px;color:#dc2626"></div>
+    <div style="display:flex;gap:10px;margin-top:16px">
+      <button onclick="closeUpload()" style="flex:1;padding:10px;border:1px solid #d1d5db;border-radius:8px;background:#fff;cursor:pointer;font-size:13px;font-weight:600">取消</button>
+      <button id="upload-confirm-btn" onclick="doUpload()" style="flex:1;padding:10px;background:#2563eb;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:700;display:none">&#10003; 确认上传</button>
+    </div>
   </div>
 </div>
 
 <script>
-// ── Config ────────────────────────────────────────────────────────────────
+// ── Config
 const KEY = new URLSearchParams(location.search).get('key') || 'ddp2026';
 
-// ── Status helpers ────────────────────────────────────────────────────────
+// ── Status helpers
 const S_LABEL = {PENDING:'待处理',ISF_FILED:'ISF已报',IN_BOND:'In-Bond',CBP_HOLD:'CBP扣押',CLEARED:'已放行',IN_TRANSIT_MX:'运输中',DELIVERED:'已送达'};
 const S_CLASS = {PENDING:'b-pend',ISF_FILED:'b-isf',IN_BOND:'b-bond',CBP_HOLD:'b-hold',CLEARED:'b-clr',IN_TRANSIT_MX:'b-trn',DELIVERED:'b-del'};
+const S_COLOR = {PENDING:'#9ca3af',ISF_FILED:'#6b7280',IN_BOND:'#7c3aed',CBP_HOLD:'#dc2626',CLEARED:'#059669',IN_TRANSIT_MX:'#d97706',DELIVERED:'#15803d'};
 
 function hasMark(v){ return v && v!='/' && v!='—' && v!='-' && String(v).trim()!=''; }
 function autoStatus(c){
-  if(hasMark(c.m_delivered))  return 'DELIVERED';
-  if(hasMark(c.cbp_hold))     return 'CBP_HOLD';
+  if(hasMark(c.m_delivered))   return 'DELIVERED';
+  if(hasMark(c.cbp_hold))      return 'CBP_HOLD';
   if(hasMark(c.m_mx_customs)||hasMark(c.m_unpacked)) return 'IN_TRANSIT_MX';
   if(hasMark(c.m_brownsville)) return 'IN_TRANSIT_MX';
   if(hasMark(c.m_cleared)||hasMark(c.m_unloaded)) return 'CLEARED';
-  if(hasMark(c.m_arrived))    return 'IN_BOND';
-  if(hasMark(c.isf_filed))    return 'ISF_FILED';
+  if(hasMark(c.m_arrived))     return 'IN_BOND';
+  if(hasMark(c.isf_filed))     return 'ISF_FILED';
   return 'PENDING';
 }
-function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function dateCell(v){ return v ? '<span class="date-cell">'+esc(v)+'</span>' : '<span style="color:#ccc">—</span>'; }
-function checkCell(v){ return hasMark(v) ? '<span class="tick">✓</span>' : '<span class="cross">—</span>'; }
+function checkCell(v){ return hasMark(v) ? '<span class="tick">&#10003;</span>' : '<span class="cross">—</span>'; }
 
-// ── State ─────────────────────────────────────────────────────────────────
+// ── State
 let allRows=[], filterCust='', filterStatus='', filterSize='', searchQ='', loggedInUser=null;
+let socket=null, currentChatChannel='', currentChatContainerId=null;
+let mapInstance=null, mapMarkers=[];
+let pendingUploadContent=null, editingCell=null;
 
-// ── Auth helpers ──────────────────────────────────────────────────────────
+// ── Toast
+function showToast(msg, type='info'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=type; t.style.display='block';
+  clearTimeout(t._tid);
+  t._tid=setTimeout(()=>{t.style.display='none';},3200);
+}
+
+// ── Auth
 function doLogout(){
+  if(socket){socket.disconnect();socket=null;}
   localStorage.removeItem('ddp_token');
   localStorage.removeItem('ddp_user');
-  loggedInUser=null;
-  filterCust='';
+  loggedInUser=null; filterCust='';
   document.getElementById('user-banner').style.display='none';
   document.getElementById('cust-tabs').style.display='flex';
+  document.getElementById('global-chat-btn').style.display='none';
+  document.getElementById('upload-btn').style.display='none';
   document.querySelectorAll('#cust-tabs .tab').forEach(t=>t.classList.remove('active'));
   document.querySelector('#cust-tabs .tab[data-cust=""]').classList.add('active');
   loadData();
 }
 
-// ── Fetch ─────────────────────────────────────────────────────────────────
+// ── Socket.io
+function connectSocket(token){
+  if(socket) socket.disconnect();
+  socket = io({auth:{token}});
+  socket.on('container_updated', updated=>{
+    const idx=allRows.findIndex(r=>r.id===updated.id);
+    if(idx>=0){ allRows[idx]=updated; buildStatChips(); render(); updateMap(); }
+  });
+  socket.on('new_message', msg=>{
+    if(msg.channel===currentChatChannel){ appendChatMsg(msg); }
+    // Show notif dot for messages from others not in current channel
+    if(loggedInUser && msg.sender_id!==loggedInUser.id && msg.channel!==currentChatChannel){
+      document.getElementById('notif-dot').style.display='block';
+    }
+  });
+}
+
+// ── Load data
 async function loadData(){
   try{
     let rows;
-    const token = localStorage.getItem('ddp_token');
+    const token=localStorage.getItem('ddp_token');
     if(token){
       try{
-        const meRes = await fetch('/api/me',{headers:{'Authorization':'Bearer '+token}});
+        const meRes=await fetch('/api/me',{headers:{'Authorization':'Bearer '+token}});
         if(meRes.ok){
-          const me = await meRes.json();
+          const me=await meRes.json();
           if(me && !me.error){
-            const cr = await fetch('/api/containers',{headers:{'Authorization':'Bearer '+token}});
-            if(cr.ok){ rows=await cr.json(); loggedInUser=me; showUserBanner(me); }
+            const cr=await fetch('/api/containers',{headers:{'Authorization':'Bearer '+token}});
+            if(cr.ok){ rows=await cr.json(); loggedInUser=me; showUserBanner(me); connectSocket(token); }
           }
         }
       }catch(e2){}
@@ -193,11 +339,13 @@ async function loadData(){
       loggedInUser=null;
       document.getElementById('user-banner').style.display='none';
       document.getElementById('cust-tabs').style.display='flex';
+      document.getElementById('global-chat-btn').style.display='none';
     }
     allRows=Array.isArray(rows)?rows:[];
     buildStatChips(); render();
+    if(mapInstance) updateMap();
   }catch(e){
-    document.getElementById('tbody').innerHTML='<tr><td colspan="25" class="no-data">❌ 加载失败：'+esc(e.message)+'</td></tr>';
+    document.getElementById('tbody').innerHTML='<tr><td colspan="26" class="no-data">&#10060; 加载失败：'+esc(e.message)+'</td></tr>';
   }
 }
 
@@ -205,9 +353,10 @@ function showUserBanner(me){
   document.getElementById('banner-name').textContent=me.name||me.email;
   document.getElementById('banner-company').textContent=
     me.role==='admin'?'管理员':
-    me.role==='customer'?('客户 · '+me.company):
-    ('供应商 · '+me.company);
+    me.role==='customer'?('客户 · '+me.company):('供应商 · '+me.company);
   document.getElementById('user-banner').style.display='block';
+  document.getElementById('global-chat-btn').style.display='flex';
+  if(me.role==='admin') document.getElementById('upload-btn').style.display='inline-block';
   if(me.role==='customer'){
     filterCust=me.company;
     document.getElementById('cust-tabs').style.display='none';
@@ -220,7 +369,7 @@ function showUserBanner(me){
   }
 }
 
-// ── Stat chips ────────────────────────────────────────────────────────────
+// ── Stat chips
 function buildStatChips(){
   const counts={};
   allRows.forEach(c=>{ const s=autoStatus(c); counts[s]=(counts[s]||0)+1; });
@@ -228,8 +377,8 @@ function buildStatChips(){
   const labels={PENDING:'待处理',ISF_FILED:'ISF',IN_BOND:'In-Bond',CBP_HOLD:'CBP扣',CLEARED:'放行',IN_TRANSIT_MX:'运输中',DELIVERED:'已送达'};
   const cls={PENDING:'chip-pending',ISF_FILED:'chip-isf',IN_BOND:'chip-inbond',CBP_HOLD:'chip-hold',CLEARED:'chip-cleared',IN_TRANSIT_MX:'chip-transit',DELIVERED:'chip-delivered'};
   const el=document.getElementById('stat-chips');
-  el.innerHTML='<span class="chip chip-all" data-s="" title="全部 '+allRows.length+' 柜">全部 '+allRows.length+'</span>'+
-    order.filter(s=>counts[s]).map(s=>'<span class="chip '+cls[s]+'" data-s="'+s+'" title="'+S_LABEL[s]+' '+counts[s]+' 柜">'+labels[s]+' '+counts[s]+'</span>').join('');
+  el.innerHTML='<span class="chip chip-all" data-s="">全部 '+allRows.length+'</span>'+
+    order.filter(s=>counts[s]).map(s=>'<span class="chip '+cls[s]+'" data-s="'+s+'">'+labels[s]+' '+counts[s]+'</span>').join('');
   el.querySelectorAll('.chip').forEach(ch=>{
     ch.addEventListener('click',()=>{
       filterStatus=ch.dataset.s;
@@ -242,24 +391,352 @@ function buildStatChips(){
   el.querySelector('.chip[data-s=""]').classList.add('active-chip');
 }
 
-// ── Render ────────────────────────────────────────────────────────────────
+// ── Inline Edit
+const CUST_EDITABLE=['notes','consignee_contact','delivery_address'];
+const VENDOR_EDITABLE=['notes','mx_driver'];
+const ADMIN_EDITABLE=['customer','container','description','size','qty','weight','etd','eta','isf_filed','in_bond','status','m_arrived','m_unloaded','m_cleared','cbp_hold','m_brownsville','m_mx_customs','m_unpacked','m_delivered','delivery_address','mx_driver','consignee_contact','price','notes'];
+
+function getEditableFields(){
+  if(!loggedInUser) return [];
+  if(loggedInUser.role==='admin') return ADMIN_EDITABLE;
+  if(loggedInUser.role==='customer') return CUST_EDITABLE;
+  if(loggedInUser.role==='vendor') return VENDOR_EDITABLE;
+  return [];
+}
+function canEditContainer(c){
+  if(!loggedInUser) return false;
+  if(loggedInUser.role==='admin') return true;
+  if(loggedInUser.role==='customer') return c.customer===loggedInUser.company;
+  if(loggedInUser.role==='vendor') return c.shipper===loggedInUser.company;
+  return false;
+}
+
+// editWrap: wraps displayHtml with click-to-edit behaviour
+function editWrap(c, field, displayHtml){
+  const editable=canEditContainer(c)&&getEditableFields().includes(field);
+  const val=String(c[field]||'');
+  // Store data in attributes; use base64 to avoid quote issues
+  const b64val=btoa(unescape(encodeURIComponent(val)));
+  return '<span class="edit-wrap" data-editable="'+(editable?1:0)+'" data-id="'+c.id+'" data-field="'+field+'" data-b64="'+b64val+'" '+(editable?'title="点击编辑" onclick="startEdit(this)"':'')+'>'+displayHtml+'</span>';
+}
+
+function startEdit(el){
+  if(editingCell&&editingCell!==el) cancelEdit();
+  editingCell=el;
+  const field=el.dataset.field;
+  const val=decodeURIComponent(escape(atob(el.dataset.b64)));
+  const isLong=['notes','delivery_address','consignee_contact'].includes(field);
+  const inp=isLong
+    ?'<textarea class="edit-input" rows="3" style="min-width:180px">'+esc(val)+'</textarea>'
+    :'<input class="edit-input" value="'+esc(val)+'" style="min-width:140px">';
+  el.innerHTML='<div class="edit-area-wrap">'+inp+'<div class="edit-actions"><button class="btn-save" onclick="saveEdit(event)">保存</button><button class="btn-cancel" onclick="cancelEdit(event)">取消</button></div></div>';
+  const input=el.querySelector('input,textarea');
+  if(input){input.focus();const len=input.value.length;try{input.setSelectionRange(len,len);}catch(e){}}
+}
+
+async function saveEdit(evt){
+  if(evt) evt.stopPropagation();
+  if(!editingCell) return;
+  const el=editingCell;
+  const id=el.dataset.id, field=el.dataset.field;
+  const inp=el.querySelector('input,textarea');
+  const newVal=inp?inp.value:'';
+  const token=localStorage.getItem('ddp_token');
+  if(!token){showToast('请先登录','error');cancelEdit();return;}
+  try{
+    const r=await fetch('/api/containers/'+id,{
+      method:'PUT',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({[field]:newVal})
+    });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'保存失败');
+    const row=allRows.find(x=>x.id==id);
+    if(row){ row[field]=newVal; if(j.data) Object.assign(row,j.data); }
+    editingCell=null;
+    showToast('已保存 ✓','success');
+    render();
+    if(mapInstance) updateMap();
+  }catch(e){
+    showToast(e.message,'error');
+    editingCell=null;
+    render();
+  }
+}
+
+function cancelEdit(evt){
+  if(evt) evt.stopPropagation();
+  editingCell=null;
+  render();
+}
+
+// ── MAP (Leaflet)
+const COORDS = {
+  laport:          [29.6703, -95.0144],
+  brownsville:     [25.9017, -97.4975],
+  matamoros:       [25.8694, -97.5027],
+  cdmx:            [19.4326, -99.1332],
+  tepotzotlan:     [19.7143, -99.2563],
+  cuautitlan:      [19.6881, -99.2136],
+  teoloyucan:      [19.7445, -99.1833],
+  atizapan:        [19.5606, -99.2556],
+  nezahualcoyotl:  [19.4009, -99.0306],
+  tlalnepantla:    [19.5392, -99.2000],
+  tultepec:        [19.7143, -99.1298],
+  azcapotzalco:    [19.4844, -99.1836],
+  vallejo:         [19.4806, -99.1600],
+  ixhuatepe:       [19.5500, -99.2000],
+};
+
+function getContainerCoords(c){
+  const s=autoStatus(c);
+  if(s==='PENDING'||s==='ISF_FILED') return COORDS.laport;
+  if(s==='IN_BOND')    return [COORDS.laport[0]-0.06, COORDS.laport[1]];
+  if(s==='CBP_HOLD')   return [COORDS.laport[0]-0.13, COORDS.laport[1]-0.07];
+  if(s==='CLEARED')    return COORDS.brownsville;
+  if(s==='IN_TRANSIT_MX') return [COORDS.matamoros[0]-1.0, COORDS.matamoros[1]-1.0];
+  if(s==='DELIVERED')  return getDeliveredCoords(c.delivery_address);
+  return COORDS.laport;
+}
+
+function getDeliveredCoords(addr){
+  if(!addr) return COORDS.cdmx;
+  const a=addr.toLowerCase();
+  if(a.includes('tepotzotlán')||a.includes('tepotzotlan')) return COORDS.tepotzotlan;
+  if(a.includes('cuautitlán')||a.includes('cuautitlan'))   return COORDS.cuautitlan;
+  if(a.includes('teoloyucan'))    return COORDS.teoloyucan;
+  if(a.includes('atizapán')||a.includes('atizapan'))       return COORDS.atizapan;
+  if(a.includes('nezahualcóyotl')||a.includes('nezahualcoyotl')) return COORDS.nezahualcoyotl;
+  if(a.includes('tlalnepantla')) return COORDS.tlalnepantla;
+  if(a.includes('tultepec'))     return COORDS.tultepec;
+  if(a.includes('azcapotzalco')) return COORDS.azcapotzalco;
+  if(a.includes('vallejo')||a.includes('pantaco')) return COORDS.vallejo;
+  if(a.includes('ixhuatepe')||a.includes('atlantic log')) return COORDS.ixhuatepe;
+  return COORDS.cdmx;
+}
+
+function initMap(){
+  if(mapInstance) return;
+  mapInstance=L.map('ddp-map').setView([26,-97],5);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:18}).addTo(mapInstance);
+
+  // Route line: La Port → Brownsville → Matamoros → CDMX
+  L.polyline([COORDS.laport, COORDS.brownsville, COORDS.matamoros, COORDS.cdmx],
+    {color:'#2563eb',weight:2.5,dashArray:'8,6',opacity:0.55}).addTo(mapInstance);
+
+  // Landmark labels
+  function lbl(coord, html, anchor){
+    return L.marker(coord, {icon:L.divIcon({className:'',html,iconAnchor:anchor||[0,0],iconSize:[1,1]})}).addTo(mapInstance);
+  }
+  lbl(COORDS.laport,     '<div style="background:#1e3a5f;color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px #0003">&#9875; La Port (Houston)</div>', [0,16]);
+  lbl(COORDS.brownsville,'<div style="background:#059669;color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px #0003">&#127482;&#127480; Brownsville TX</div>',[0,16]);
+  lbl(COORDS.matamoros,  '<div style="background:#d97706;color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px #0003">&#127474;&#127485; Matamoros MX</div>',[0,16]);
+  lbl(COORDS.cdmx,       '<div style="background:#7c3aed;color:#fff;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px #0003">&#127474;&#127485; CDMX 目的地区</div>',[0,16]);
+
+  updateMap();
+}
+
+function updateMap(){
+  if(!mapInstance) return;
+  mapMarkers.forEach(m=>mapInstance.removeLayer(m));
+  mapMarkers=[];
+
+  // Group by coord to jitter overlapping markers
+  const posCount={};
+  const filtered=allRows.filter(c=>{
+    if(filterCust&&c.customer!==filterCust) return false;
+    if(filterStatus&&autoStatus(c)!==filterStatus) return false;
+    return true;
+  });
+
+  filtered.forEach(c=>{
+    const base=getContainerCoords(c);
+    const key=base[0].toFixed(2)+','+base[1].toFixed(2);
+    posCount[key]=(posCount[key]||0)+1;
+    const n=posCount[key];
+    const jLat=(n-1)*0.04*Math.cos((n-1)*2.1);
+    const jLng=(n-1)*0.04*Math.sin((n-1)*2.1);
+    const pos=[base[0]+jLat, base[1]+jLng];
+    const s=autoStatus(c);
+    const col=S_COLOR[s]||'#9ca3af';
+    const m=L.circleMarker(pos,{radius:7,fillColor:col,color:'#fff',weight:2,fillOpacity:0.92});
+    m.bindPopup(
+      '<div style="min-width:180px;font-size:12px">'
+      +'<b style="font-family:monospace">'+c.container+'</b><br>'
+      +'<span style="color:'+col+';font-weight:700">'+S_LABEL[s]+'</span> &middot; '+esc(c.customer)+'<br>'
+      +(c.description?'<span style="color:#6b7280">'+esc(c.description)+'</span><br>':'')
+      +(c.delivery_address?'<small style="color:#9ca3af">'+esc(c.delivery_address)+'</small>':'')
+      +'</div>'
+    );
+    m.addTo(mapInstance);
+    mapMarkers.push(m);
+  });
+}
+
+function toggleMap(){
+  const p=document.getElementById('map-panel');
+  const open=p.style.display==='block';
+  p.style.display=open?'none':'block';
+  document.getElementById('map-toggle-btn').style.background=open?'rgba(255,255,255,.15)':'rgba(255,255,255,.4)';
+  if(!open){ initMap(); setTimeout(()=>{if(mapInstance)mapInstance.invalidateSize();},120); }
+}
+
+// ── CHAT
+async function loadChatMsgs(channel){
+  const el=document.getElementById('chat-msgs');
+  el.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;font-size:12px">加载中…</div>';
+  try{
+    const token=localStorage.getItem('ddp_token');
+    if(!token){ el.innerHTML='<div style="text-align:center;color:#9ca3af;padding:24px;font-size:12px">请先登录查看消息</div>'; return; }
+    const r=await fetch('/api/messages?channel='+encodeURIComponent(channel),{headers:{'Authorization':'Bearer '+token}});
+    const data=await r.json();
+    if(!r.ok) throw new Error(data.error||'加载失败');
+    el.innerHTML='';
+    if(!data.length) el.innerHTML='<div style="text-align:center;color:#9ca3af;padding:32px;font-size:12px">&#128075; 暂无消息，来发第一条吧！</div>';
+    else data.forEach(m=>appendChatMsg(m));
+    el.scrollTop=el.scrollHeight;
+  }catch(e){
+    el.innerHTML='<div style="text-align:center;color:#dc2626;padding:24px;font-size:12px">'+esc(e.message)+'</div>';
+  }
+}
+
+function appendChatMsg(msg){
+  const el=document.getElementById('chat-msgs');
+  const isMine=loggedInUser&&msg.sender_id===loggedInUser.id;
+  const time=new Date(msg.created_at).toLocaleString('zh',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'});
+  const wrap=document.createElement('div');
+  wrap.style.display='flex';
+  wrap.style.flexDirection='column';
+  wrap.style.alignItems=isMine?'flex-end':'flex-start';
+  const div=document.createElement('div');
+  div.className='chat-msg '+(isMine?'mine':'other');
+  div.innerHTML=(isMine?'':'<div class="chat-msg-meta">'+esc(msg.sender_name||msg.sender_role)+'</div>')+
+    '<div>'+esc(msg.content)+'</div>'+
+    '<div class="chat-meta-right">'+time+'</div>';
+  wrap.appendChild(div);
+  el.appendChild(wrap);
+  el.scrollTop=el.scrollHeight;
+}
+
+async function sendMsg(){
+  const inp=document.getElementById('chat-input');
+  const content=inp.value.trim();
+  if(!content||!currentChatChannel) return;
+  const token=localStorage.getItem('ddp_token');
+  if(!token){showToast('请先登录','error');return;}
+  inp.value='';
+  try{
+    const r=await fetch('/api/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body:JSON.stringify({channel:currentChatChannel,content,container_id:currentChatContainerId})
+    });
+    if(!r.ok){ const j=await r.json(); throw new Error(j.error||'发送失败'); }
+  }catch(e){ showToast(e.message,'error'); inp.value=content; }
+}
+
+function openChat(containerId, containerNum){
+  currentChatContainerId=containerId;
+  currentChatChannel='container:'+containerId;
+  document.getElementById('chat-title').textContent=containerNum;
+  document.getElementById('chat-input-area').style.display=loggedInUser?'flex':'none';
+  document.getElementById('chat-overlay').classList.add('open');
+  loadChatMsgs(currentChatChannel);
+  if(socket) socket.emit('join_container', containerId);
+}
+
+function openGlobalChat(){
+  currentChatContainerId=null;
+  currentChatChannel=loggedInUser?'general':'';
+  document.getElementById('chat-title').textContent='&#128226; 全局通知';
+  document.getElementById('chat-input-area').style.display=loggedInUser?'flex':'none';
+  document.getElementById('chat-overlay').classList.add('open');
+  document.getElementById('notif-dot').style.display='none';
+  if(currentChatChannel) loadChatMsgs(currentChatChannel);
+}
+
+function closeChat(){
+  document.getElementById('chat-overlay').classList.remove('open');
+  currentChatChannel='';
+}
+
+// ── UPLOAD
+function openUpload(){
+  document.getElementById('upload-modal').classList.add('open');
+}
+function closeUpload(){
+  document.getElementById('upload-modal').classList.remove('open');
+  pendingUploadContent=null;
+  document.getElementById('upload-status').style.display='none';
+  document.getElementById('upload-error').style.display='none';
+  document.getElementById('upload-confirm-btn').style.display='none';
+  document.getElementById('csv-file').value='';
+  document.getElementById('upload-confirm-btn').textContent='&#10003; 确认上传';
+  document.getElementById('upload-confirm-btn').disabled=false;
+}
+
+function handleFileSelect(file){
+  if(!file) return;
+  document.getElementById('upload-error').style.display='none';
+  const reader=new FileReader();
+  reader.onload=e=>{
+    pendingUploadContent=e.target.result;
+    const lines=pendingUploadContent.split('\n').filter(l=>l.trim());
+    const st=document.getElementById('upload-status');
+    st.style.display='block';
+    st.innerHTML='<b>&#10003; 已读取：</b>'+esc(file.name)+'<br>共 '+(lines.length-1)+' 行数据（不含表头）<br><small style="color:#6b7280">表头字段：'+esc(lines[0].substring(0,120))+'</small>';
+    document.getElementById('upload-confirm-btn').style.display='block';
+  };
+  reader.onerror=()=>{ document.getElementById('upload-error').style.display='block'; document.getElementById('upload-error').textContent='读取文件失败'; };
+  reader.readAsText(file, 'utf-8');
+}
+
+async function doUpload(){
+  if(!pendingUploadContent){showToast('请先选择文件','error');return;}
+  const token=localStorage.getItem('ddp_token');
+  if(!token){showToast('请先登录','error');return;}
+  const btn=document.getElementById('upload-confirm-btn');
+  btn.disabled=true; btn.textContent='上传中…';
+  try{
+    const r=await fetch('/api/admin/upload',{
+      method:'POST',
+      headers:{'Content-Type':'text/csv','Authorization':'Bearer '+token},
+      body:pendingUploadContent
+    });
+    const j=await r.json();
+    if(!r.ok) throw new Error(j.error||'上传失败');
+    showToast('上传完成！更新 '+j.updated+' 条，新增 '+j.inserted+' 条'+(j.errors?' ('+j.errors+' 行跳过)':''),'success');
+    closeUpload();
+    await loadData();
+  }catch(e){
+    document.getElementById('upload-error').style.display='block';
+    document.getElementById('upload-error').textContent=e.message;
+    btn.disabled=false; btn.textContent='&#10003; 确认上传';
+  }
+}
+
+// ── RENDER
 function render(){
   const q=searchQ.toLowerCase().trim();
   let list=allRows.filter(c=>{
-    if(filterCust && c.customer!==filterCust) return false;
-    if(filterSize && c.size!==filterSize) return false;
+    if(filterCust&&c.customer!==filterCust) return false;
+    if(filterSize&&c.size!==filterSize) return false;
     const s=autoStatus(c);
-    if(filterStatus && s!==filterStatus) return false;
+    if(filterStatus&&s!==filterStatus) return false;
     if(q){ const hay=[c.container,c.description,c.notes,c.delivery_address,c.mx_driver,c.in_bond].join(' ').toLowerCase(); if(!hay.includes(q)) return false; }
     return true;
   });
   document.getElementById('count-label').textContent='显示 '+list.length+' / '+allRows.length+' 柜';
-  if(!list.length){ document.getElementById('tbody').innerHTML='<tr><td colspan="25" class="no-data">暂无数据</td></tr>'; return; }
+  if(!list.length){ document.getElementById('tbody').innerHTML='<tr><td colspan="26" class="no-data">暂无数据</td></tr>'; return; }
   document.getElementById('tbody').innerHTML=list.map((c,i)=>{
     const s=autoStatus(c);
     const custCls=c.customer==='Yingsheng'?'b-ys':'b-mt';
     const price=c.price?'<span class="price-cell">$'+Number(c.price).toLocaleString()+'</span>':'<span style="color:#ccc">—</span>';
-    const cbpHold=(c.cbp_hold&&c.cbp_hold!='0')?'<span class="hold-flag">⚠️ YES</span>':'<span class="cross">—</span>';
+    const cbpHold=(c.cbp_hold&&c.cbp_hold!='0')?'<span class="hold-flag">&#9888;&#65039; YES</span>':'<span class="cross">—</span>';
+    // Editable cells with wrapper
+    const notesTd=editWrap(c,'notes','<span class="notes-cell">'+esc(c.notes||'—')+'</span>');
+    const consigneeTd=editWrap(c,'consignee_contact','<span style="font-size:11px;color:#555">'+esc(c.consignee_contact||'—')+'</span>');
+    const addrTd=editWrap(c,'delivery_address','<span class="addr-cell">'+esc(c.delivery_address||'—')+'</span>');
     return '<tr>'
       +'<td style="text-align:center;color:#999;font-size:11px">'+(i+1)+'</td>'
       +'<td><span class="badge '+custCls+'">'+esc(c.customer)+'</span></td>'
@@ -281,16 +758,17 @@ function render(){
       +'<td>'+dateCell(c.m_unpacked)+'</td>'
       +'<td>'+dateCell(c.m_delivered)+'</td>'
       +'<td><span class="badge '+S_CLASS[s]+'">'+S_LABEL[s]+'</span></td>'
-      +'<td class="addr-cell" title="'+esc(c.delivery_address||'')+'">'+esc(c.delivery_address||'—')+'</td>'
+      +'<td>'+addrTd+'</td>'
       +'<td class="driver-cell" title="'+esc(c.mx_driver||'')+'">'+esc(c.mx_driver||'—')+'</td>'
-      +'<td style="font-size:11px;color:#555;white-space:normal;max-width:140px" title="'+esc(c.consignee_contact||'')+'">'+esc(c.consignee_contact||'—')+'</td>'
+      +'<td>'+consigneeTd+'</td>'
       +'<td>'+price+'</td>'
-      +'<td class="notes-cell" title="'+esc(c.notes||'')+'">'+esc(c.notes||'—')+'</td>'
+      +'<td>'+notesTd+'</td>'
+      +'<td style="text-align:center"><button class="chat-btn" onclick="openChat('+c.id+',\''+c.container.replace(/'/g,"\\'")+'\')" title="发消息 / 发Ticket">&#128172;</button></td>'
       +'</tr>';
   }).join('');
 }
 
-// ── Events ────────────────────────────────────────────────────────────────
+// ── EVENTS
 document.getElementById('search').addEventListener('input',e=>{ searchQ=e.target.value; render(); });
 document.getElementById('status-filter').addEventListener('change',e=>{
   filterStatus=e.target.value;
@@ -302,12 +780,25 @@ document.getElementById('status-filter').addEventListener('change',e=>{
 document.getElementById('size-filter').addEventListener('change',e=>{ filterSize=e.target.value; render(); });
 document.querySelectorAll('#cust-tabs .tab').forEach(t=>{
   t.addEventListener('click',()=>{
-    if(loggedInUser&&loggedInUser.role!=='admin') return; // customers can't switch tabs
+    if(loggedInUser&&loggedInUser.role!=='admin') return;
     document.querySelectorAll('#cust-tabs .tab').forEach(x=>x.classList.remove('active'));
     t.classList.add('active');
     filterCust=t.dataset.cust;
     render();
+    if(mapInstance) updateMap();
   });
+});
+document.getElementById('chat-input').addEventListener('keydown',e=>{
+  if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); sendMsg(); }
+});
+// Drop zone
+const dz=document.getElementById('drop-zone');
+dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('drag-over');});
+dz.addEventListener('dragleave',()=>dz.classList.remove('drag-over'));
+dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('drag-over');const f=e.dataTransfer.files[0];if(f)handleFileSelect(f);});
+// Click outside edit to cancel
+document.addEventListener('click',e=>{
+  if(editingCell && !editingCell.contains(e.target)) cancelEdit();
 });
 
 loadData();
